@@ -14,6 +14,10 @@ public protocol RootCoordinatable: Coordinatable where ViewType == RootCoordinat
 }
 
 public extension RootCoordinatable {
+    var _dataId: ObjectIdentifier {
+        root.id
+    }
+    
     var anyRoot: any AnyRoot {
         root.setup(for: self)
         return root
@@ -81,13 +85,20 @@ public struct RootCoordinatableView: View {
     
     @ViewBuilder
     func wrappedView(_ destination: Destination) -> some View {
-        if let view = destination.view {
-            AnyView(view)
-                .environmentCoordinatable(destination.parent)
-        } else if let c = destination.coordinatable {
-            AnyView(c.view())
+        let content = Group {
+            if let view = destination.view {
+                view.environmentCoordinatable(destination.parent)
+            } else if let c = destination.coordinatable {
+                AnyView(c.view())
+            } else {
+                EmptyView()
+            }
+        }
+        
+        if destination.parent._dataId != coordinator._dataId {
+            destination.parent.customize(AnyView(content))
         } else {
-            EmptyView()
+            content
         }
     }
     

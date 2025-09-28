@@ -15,6 +15,10 @@ public protocol FlowCoordinatable: Coordinatable where ViewType == FlowCoordinat
 }
 
 public extension FlowCoordinatable {
+    var _dataId: ObjectIdentifier {
+        stack.id
+    }
+    
     var anyStack: any AnyFlowStack {
         stack.setup(for: self)
         return stack
@@ -440,14 +444,20 @@ public struct FlowCoordinatableView: View {
     
     @ViewBuilder
     func wrappedView(_ destination: Destination) -> some View {
-        if let view = destination.view {
-            view
-                .environmentCoordinatable(destination.parent)
-        } else if let c = destination.coordinatable {
-            AnyView(c.view()
-            )
+        let content = Group {
+            if let view = destination.view {
+                view.environmentCoordinatable(destination.parent)
+            } else if let c = destination.coordinatable {
+                AnyView(c.view())
+            } else {
+                EmptyView()
+            }
+        }
+        
+        if destination.parent._dataId != coordinator._dataId {
+            destination.parent.customize(AnyView(content))
         } else {
-            EmptyView()
+            content
         }
     }
     

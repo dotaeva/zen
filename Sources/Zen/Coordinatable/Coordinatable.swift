@@ -12,6 +12,7 @@ public protocol Coordinatable: Identifiable {
     associatedtype Destinations: Destinationable where Destinations.Owner == Self
     associatedtype ViewType: View
     
+    var _dataId: ObjectIdentifier { get }
     var parent: (any Coordinatable)? { get }
     var hasLayerNavigationCoordinatable: Bool { get }
     func view() -> ViewType

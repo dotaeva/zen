@@ -14,6 +14,10 @@ public protocol TabCoordinatable: Coordinatable where ViewType == TabCoordinatab
 }
 
 public extension TabCoordinatable {
+    var _dataId: ObjectIdentifier {
+        tabItems.id
+    }
+    
     var anyTabItems: any AnyTabItems {
         tabItems.setup(for: self)
         return tabItems
@@ -227,13 +231,20 @@ public struct TabCoordinatableView: View {
     
     @ViewBuilder
     func wrappedView(_ destination: Destination) -> some View {
-        if let view = destination.view {
-            AnyView(view)
-                .environmentCoordinatable(destination.parent)
-        } else if let c = destination.coordinatable {
-            AnyView(c.view())
+        let content = Group {
+            if let view = destination.view {
+                view.environmentCoordinatable(destination.parent)
+            } else if let c = destination.coordinatable {
+                AnyView(c.view())
+            } else {
+                EmptyView()
+            }
+        }
+        
+        if destination.parent._dataId != coordinator._dataId {
+            destination.parent.customize(AnyView(content))
         } else {
-            EmptyView()
+            content
         }
     }
     
