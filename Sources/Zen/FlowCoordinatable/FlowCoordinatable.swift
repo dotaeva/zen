@@ -484,15 +484,17 @@ public struct FlowCoordinatableView: View {
     public var body: some View {
         coordinator.customize(
             AnyView(
-                Group {
-                    if coordinator.anyStack.hasLayerNavigationCoordinator {
-                        if let rootView = coordinator.anyStack.root?.view {
-                            AnyView(rootView)
+                NavigationView {
+                    Group {
+                        if coordinator.anyStack.hasLayerNavigationCoordinator {
+                            if let rootView = coordinator.anyStack.root?.view {
+                                AnyView(rootView)
+                            } else {
+                                EmptyView()
+                            }
                         } else {
-                            EmptyView()
+                            coordinatorView()
                         }
-                    } else {
-                        coordinatorView()
                     }
                 }
             )
