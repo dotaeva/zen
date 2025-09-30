@@ -5,7 +5,6 @@
 //  Created by Alexandr Valíček on 26.09.2025.
 //
 
-
 import SwiftUI
 import Observation
 

@@ -11,6 +11,7 @@ import SwiftUI
 public protocol Coordinatable: Identifiable {
     associatedtype Destinations: Destinationable where Destinations.Owner == Self
     associatedtype ViewType: View
+    associatedtype CustomizeContentView: View
     
     var _dataId: ObjectIdentifier { get }
     var parent: (any Coordinatable)? { get }
@@ -18,11 +19,11 @@ public protocol Coordinatable: Identifiable {
     func view() -> ViewType
     func setHasLayerNavigationCoordinatable(_ value: Bool)
     func setParent(_ value: any Coordinatable)
-    func customize(_ view: AnyView) -> AnyView
+    func customize(_ view: AnyView) -> CustomizeContentView
 }
 
 public extension Coordinatable {
-    func customize(_ view: AnyView) -> AnyView {
+    func customize(_ view: AnyView) -> some View {
         view
     }
     
@@ -34,6 +35,12 @@ public extension Coordinatable {
                 return AnyHashable(coordinatableId) == selfId
             })
         }
+    }
+}
+
+extension Coordinatable {
+    func customizeErased(_ view: AnyView) -> AnyView {
+        AnyView(customize(view))
     }
 }
 

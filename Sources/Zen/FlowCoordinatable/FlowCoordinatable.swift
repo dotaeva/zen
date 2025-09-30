@@ -14,6 +14,7 @@ public protocol FlowCoordinatable: Coordinatable where ViewType == FlowCoordinat
     var anyStack: any AnyFlowStack { get }
 }
 
+@MainActor
 public extension FlowCoordinatable {
     var _dataId: ObjectIdentifier {
         stack.id
@@ -439,33 +440,22 @@ public extension FlowCoordinatable {
     }
 }
 
-public struct FlowCoordinatableView: View {
-    var coordinator: any FlowCoordinatable
+public struct FlowCoordinatableView: CoordinatableView {
+    private let _coordinator: any FlowCoordinatable
     
-    @ViewBuilder
-    func wrappedView(_ destination: Destination) -> some View {
-        let content = Group {
-            if let view = destination.view {
-                view.environmentCoordinatable(destination.parent)
-            } else if let c = destination.coordinatable {
-                AnyView(c.view())
-            } else {
-                EmptyView()
-            }
-        }
-        
-        if destination.parent._dataId != coordinator._dataId {
-            destination.parent.customize(AnyView(content))
-        } else {
-            content
-        }
+    public var coordinator: any Coordinatable {
+        _coordinator
+    }
+    
+    init(coordinator: any FlowCoordinatable) {
+        self._coordinator = coordinator
     }
     
     @ViewBuilder
     private func coordinatorView() -> some View {
-        if let rootView = coordinator.anyStack.root?.view {
+        if let rootView = _coordinator.anyStack.root?.view {
             flowCoordinatableView(view: AnyView(rootView))
-        } else if let c = coordinator.anyStack.root?.coordinatable {
+        } else if let c = _coordinator.anyStack.root?.coordinatable {
             flowCoordinatableView(view: AnyView(c.view()))
         } else {
             EmptyView()
@@ -473,33 +463,31 @@ public struct FlowCoordinatableView: View {
     }
     
     private func flowCoordinatableView(view: AnyView) -> some View {
-        NavigationStack(path: coordinator.bindingStack(for: .push)) {
+        NavigationStack(path: _coordinator.bindingStack(for: .push)) {
             view
                 .navigationDestination(for: Destination.self, destination: wrappedView)
         }
-        .applySheets(from: coordinator, modalContent: wrappedView)
-        .applyFullScreenCovers(from: coordinator, modalContent: wrappedView)
+        .applySheets(from: _coordinator, modalContent: wrappedView)
+        .applyFullScreenCovers(from: _coordinator, modalContent: wrappedView)
     }
     
     public var body: some View {
-        coordinator.customize(
+        _coordinator.customize(
             AnyView(
-                NavigationView {
-                    Group {
-                        if coordinator.anyStack.hasLayerNavigationCoordinator {
-                            if let rootView = coordinator.anyStack.root?.view {
-                                AnyView(rootView)
-                            } else {
-                                EmptyView()
-                            }
+                Group {
+                    if _coordinator.anyStack.hasLayerNavigationCoordinator {
+                        if let rootView = _coordinator.anyStack.root?.view {
+                            AnyView(rootView)
                         } else {
-                            coordinatorView()
+                            EmptyView()
                         }
+                    } else {
+                        coordinatorView()
                     }
                 }
             )
         )
-        .environmentCoordinatable(coordinator)
-        .id(coordinator.anyStack.id)
+        .environmentCoordinatable(_coordinator)
+        .id(_coordinator.anyStack.id)
     }
 }

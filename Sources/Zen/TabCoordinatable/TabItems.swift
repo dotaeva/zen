@@ -11,6 +11,7 @@ import Observation
 public protocol AnyTabItems: AnyObject, CoordinatableData where Coordinator: TabCoordinatable {
     var tabs: [Destination] { get set }
     var selectedTab: UUID? { get set }
+    var tabBarVisibility: Visibility { get set }
 }
 
 @Observable
@@ -21,11 +22,13 @@ public class TabItems<Coordinator: TabCoordinatable>: AnyTabItems {
     public var tabs: [Destination] = .init()
     public var selectedTab: UUID? = nil
     
+    public var tabBarVisibility: Visibility = .automatic
     public var isSetup: Bool = false
     private var initialTabs: [Coordinator.Destinations] = .init()
     
-    public init(tabs: [Coordinator.Destinations]) {
+    public init(tabs: [Coordinator.Destinations], visibility: Visibility = .automatic) {
         self.initialTabs = tabs
+        self.tabBarVisibility = visibility
     }
     
     public func setup(for coordinator: Coordinator) {
@@ -41,6 +44,11 @@ public class TabItems<Coordinator: TabCoordinatable>: AnyTabItems {
     
     public func setParent(_ parent: any Coordinatable) {
         self.parent = parent
+    }
+    
+    
+    func setTabBarVisibility(_ value: Visibility) {
+        self.tabBarVisibility = value
     }
 }
 
@@ -72,6 +80,14 @@ extension TabItems {
         let selectedDestination = tabs[index]
         selectedTab = selectedDestination.id
         return selectedDestination
+    }
+    
+    func select(_ id: UUID) -> Destination? {
+        if let foundTab = tabs.first(where: { $0.id == id }) {
+            selectedTab = foundTab.id
+            return foundTab
+        }
+        return nil
     }
     
     func setTabs(_ tabs: [Destination]) {

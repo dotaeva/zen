@@ -13,6 +13,7 @@ public protocol TabCoordinatable: Coordinatable where ViewType == TabCoordinatab
     var anyTabItems: any AnyTabItems { get }
 }
 
+@MainActor
 public extension TabCoordinatable {
     var _dataId: ObjectIdentifier {
         tabItems.id
@@ -42,6 +43,10 @@ public extension TabCoordinatable {
     
     func setParent(_ parent: any Coordinatable) {
         tabItems.setParent(parent)
+    }
+    
+    func setTabBarVisibility(_ value: Visibility) {
+        tabItems.setTabBarVisibility(value)
     }
 }
 
@@ -119,6 +124,32 @@ public extension TabCoordinatable {
         value: @escaping (T) -> Void
     ) -> Self {
         let tab = tabItems.select(index)
+        
+        guard let tab else { return self }
+        
+        if tab.coordinatable != nil, let coordinatable = tab.coordinatable as? T {
+            value(coordinatable)
+        } else if let view = tab.view as? T {
+            value(view)
+        } else {
+            fatalError("Could not cast to type \(T.self)")
+        }
+        
+        return self
+    }
+    
+    @discardableResult
+    func select(id: UUID) -> Self {
+        let _ = tabItems.select(id)
+        return self
+    }
+    
+    @discardableResult
+    func select<T>(
+        id: UUID,
+        value: @escaping (T) -> Void
+    ) -> Self {
+        let tab = tabItems.select(id)
         
         guard let tab else { return self }
         
@@ -226,50 +257,42 @@ public extension TabCoordinatable {
     }
 }
 
-public struct TabCoordinatableView: View {
-    var coordinator: any TabCoordinatable
+public struct TabCoordinatableView: CoordinatableView {
+    private let _coordinator: any TabCoordinatable
     
-    @ViewBuilder
-    func wrappedView(_ destination: Destination) -> some View {
-        let content = Group {
-            if let view = destination.view {
-                view.environmentCoordinatable(destination.parent)
-            } else if let c = destination.coordinatable {
-                AnyView(c.view())
-            } else {
-                EmptyView()
-            }
-        }
-        
-        if destination.parent._dataId != coordinator._dataId {
-            destination.parent.customize(AnyView(content))
-        } else {
-            content
-        }
+    public var coordinator: any Coordinatable {
+        _coordinator
+    }
+    
+    init(coordinator: any TabCoordinatable) {
+        self._coordinator = coordinator
     }
     
     private func flowCoordinatableView() -> some View {
-        TabView(selection: coordinator.selectedTabBinding) {
-            ForEach(coordinator.anyTabItems.tabs) { tab in
-                wrappedView(tab)
-                    .environmentCoordinatable(coordinator)
-                    .tabItem {
-                        if let tabItem = tab.tabItem {
-                            AnyView(tabItem)
+        TabView(selection: _coordinator.selectedTabBinding) {
+            Group {
+                ForEach(_coordinator.anyTabItems.tabs) { tab in
+                    wrappedView(tab)
+                        .tabItem {
+                            if let tabItem = tab.tabItem {
+                                AnyView(tabItem)
+                            }
                         }
-                    }
-                    .tag(tab.id)
+                        .tag(tab.id)
+                }
             }
+            .environmentCoordinatable(_coordinator)
+            .toolbar(_coordinator.anyTabItems.tabBarVisibility, for: .tabBar)
         }
     }
     
     public var body: some View {
-        coordinator.customize(
+        _coordinator.customize(
             AnyView(
                 flowCoordinatableView()
             )
         )
         .environmentCoordinatable(coordinator)
-        .id(coordinator.anyTabItems.id)
+        .id(_coordinator.anyTabItems.id)
     }
 }

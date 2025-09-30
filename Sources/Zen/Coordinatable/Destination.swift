@@ -18,9 +18,9 @@ public enum DestinationType {
 public struct Destination: Identifiable {
     class CoordinatableCache {
         private let coordinatableFactory: () -> any Coordinatable
-        private let viewFactory: (() -> any View)?
+        private let viewFactory: (() -> AnyView)?
         private var _cachedCoordinatable: (any Coordinatable)?
-        private var _cachedView: (any View)?
+        private var _cachedView: AnyView?
         
         init(_ factory: @escaping () -> any Coordinatable) {
             self.coordinatableFactory = factory
@@ -34,7 +34,7 @@ public struct Destination: Identifiable {
             }
             self.viewFactory = {
                 let (_, view) = factory()
-                return view
+                return AnyView(view)
             }
         }
         
@@ -47,7 +47,7 @@ public struct Destination: Identifiable {
             return instance
         }
         
-        var view: (any View)? {
+        var view: AnyView? {
             guard let viewFactory = viewFactory else { return nil }
             
             if let cached = _cachedView {
@@ -61,8 +61,8 @@ public struct Destination: Identifiable {
     
     public var id: UUID = .init()
     
-    var view: (any View)?
-    var _tabItem: (any View)?
+    var view: AnyView?
+    var _tabItem: AnyView?
     var _coordinatable: CoordinatableCache?
     
     var pushType: DestinationType?
@@ -75,7 +75,7 @@ public struct Destination: Identifiable {
         return _coordinatable?.coordinatable
     }
     
-    public var tabItem: (any View)? {
+    public var tabItem: AnyView? {
         return _tabItem ?? _coordinatable?.view
     }
     
@@ -84,7 +84,7 @@ public struct Destination: Identifiable {
         meta: any DestinationMeta,
         parent: any Coordinatable,
     ) {
-        self.view = value
+        self.view = AnyView(value)
         self.meta = meta
         self.parent = parent
     }
@@ -116,10 +116,10 @@ public struct Destination: Identifiable {
     ) {
         let (v, t) = factory()
         
-        self.view = v
+        self.view = AnyView(v)
         self.meta = meta
         self.parent = parent
-        self._tabItem = t
+        self._tabItem = AnyView(t)
     }
     
     mutating func setOnDismiss(_ value: @escaping () -> Void) {

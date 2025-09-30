@@ -80,32 +80,22 @@ public extension RootCoordinatable {
     }
 }
 
-public struct RootCoordinatableView: View {
-    var coordinator: any RootCoordinatable
+public struct RootCoordinatableView: CoordinatableView {
+    private let _coordinator: any RootCoordinatable
     
-    @ViewBuilder
-    func wrappedView(_ destination: Destination) -> some View {
-        let content = Group {
-            if let view = destination.view {
-                view.environmentCoordinatable(destination.parent)
-            } else if let c = destination.coordinatable {
-                AnyView(c.view())
-            } else {
-                EmptyView()
-            }
-        }
-        
-        if destination.parent._dataId != coordinator._dataId {
-            destination.parent.customize(AnyView(content))
-        } else {
-            content
-        }
+    public var coordinator: any Coordinatable {
+        _coordinator
+    }
+    
+    init(coordinator: any RootCoordinatable) {
+        self._coordinator = coordinator
     }
     
     @ViewBuilder
     func coordinatableView() -> some View {
-        if let root = coordinator.anyRoot.root {
+        if let root = _coordinator.anyRoot.root {
             wrappedView(root)
+                .id(_coordinator.anyRoot.root?.id)
         } else {
             EmptyView()
         }
@@ -118,6 +108,5 @@ public struct RootCoordinatableView: View {
             )
         )
         .environmentCoordinatable(coordinator)
-        .id(coordinator.anyRoot.id)
     }
 }
