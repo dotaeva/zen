@@ -66,7 +66,7 @@ public struct Destination: Identifiable {
     var _coordinatable: CoordinatableCache?
     
     var pushType: DestinationType?
-    var meta: any DestinationMeta
+    public let meta: any DestinationMeta
     var parent: any Coordinatable
     
     var onDismiss: (() -> Void)?

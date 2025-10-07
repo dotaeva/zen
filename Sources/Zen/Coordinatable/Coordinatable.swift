@@ -36,6 +36,10 @@ public extension Coordinatable {
             })
         }
     }
+    
+    func resolveMeta(_ meta: DestinationMeta) -> Destinations.Meta? {
+        return meta as? Self.Destinations.Meta
+    }
 }
 
 extension Coordinatable {
