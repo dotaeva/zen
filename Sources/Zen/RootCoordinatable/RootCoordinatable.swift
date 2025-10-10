@@ -43,14 +43,18 @@ public extension RootCoordinatable {
     func setParent(_ parent: any Coordinatable) {
         root.setParent(parent)
     }
+    
+    func setRootTransitionAnimation(_ animation: Animation?) {
+        root.setAnimation(animation: animation)
+    }
 }
 
 public extension RootCoordinatable {
     @discardableResult
-    func setRoot(_ destination: Destinations) -> Self {
+    func setRoot(_ destination: Destinations, animation: Animation? = nil) -> Self {
         let dest = destination.value(for: self)
         
-        root.root = dest
+        root.setRoot(root: dest, animation: animation)
         
         return self
     }
@@ -58,11 +62,12 @@ public extension RootCoordinatable {
     @discardableResult
     func setRoot<T>(
         _ destination: Destinations,
+        animation: Animation? = nil,
         value: @escaping (T) -> Void
     ) -> Self {
         let dest = destination.value(for: self)
         
-        root.root = dest
+        root.setRoot(root: dest, animation: animation)
         
         if dest.coordinatable != nil, let coordinatable = dest.coordinatable as? T {
             value(coordinatable)

@@ -45,6 +45,10 @@ public extension FlowCoordinatable {
     func setParent(_ parent: any Coordinatable) {
         stack.setParent(parent)
     }
+    
+    func setRootTransitionAnimation(_ animation: Animation?) {
+        stack.setAnimation(animation: animation)
+    }
 }
 
 extension FlowCoordinatable {
@@ -295,10 +299,10 @@ extension FlowCoordinatable {
 
 public extension FlowCoordinatable {
     @discardableResult
-    func setRoot(_ destination: Destinations) -> Self {
+    func setRoot(_ destination: Destinations, animation: Animation? = nil) -> Self {
         let dest = destination.value(for: self)
         
-        stack.root = dest
+        stack.setRoot(root: dest, animation: animation)
         
         return self
     }
@@ -306,11 +310,12 @@ public extension FlowCoordinatable {
     @discardableResult
     func setRoot<T>(
         _ destination: Destinations,
+        animation: Animation? = nil,
         value: @escaping (T) -> Void
     ) -> Self {
         let dest = destination.value(for: self)
         
-        stack.root = dest
+        stack.setRoot(root: dest, animation: animation)
         
         if dest.coordinatable != nil, let coordinatable = dest.coordinatable as? T {
             value(coordinatable)

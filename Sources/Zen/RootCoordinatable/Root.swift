@@ -10,6 +10,7 @@ import Observation
 
 public protocol AnyRoot: AnyObject, CoordinatableData where Coordinator: RootCoordinatable {
     var root: Destination? { get set }
+    var animation: Animation? { get set }
 }
 
 @Observable
@@ -17,6 +18,7 @@ public class Root<Coordinator: RootCoordinatable>: AnyRoot {
     public var root: Destination?
     public var parent: (any Coordinatable)?
     public var hasLayerNavigationCoordinator: Bool = false
+    public var animation: Animation? = .default
     
     public var isSetup: Bool = false
     private var initialRoot: Coordinator.Destinations?
@@ -36,5 +38,17 @@ public class Root<Coordinator: RootCoordinatable>: AnyRoot {
     
     public func setParent(_ parent: any Coordinatable) {
         self.parent = parent
+    }
+    
+    func setAnimation(animation: Animation?) {
+        self.animation = animation
+    }
+}
+
+extension Root {
+    func setRoot(root: Destination, animation: Animation?) {
+        withAnimation(animation ?? self.animation) {
+            self.root = root
+        }
     }
 }

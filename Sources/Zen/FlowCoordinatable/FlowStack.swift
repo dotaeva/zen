@@ -11,6 +11,7 @@ import Observation
 public protocol AnyFlowStack: AnyObject, CoordinatableData where Coordinator: FlowCoordinatable {
     var root: Destination? { get set }
     var destinations: [Destination] { get set }
+    var animation: Animation? { get set }
 }
 
 @Observable
@@ -18,6 +19,7 @@ public class FlowStack<Coordinator: FlowCoordinatable>: AnyFlowStack {
     public var root: Destination?
     public var parent: (any Coordinatable)?
     public var hasLayerNavigationCoordinator: Bool = false
+    public var animation: Animation? = .default
     
     public var destinations: [Destination] = .init()
     
@@ -39,6 +41,10 @@ public class FlowStack<Coordinator: FlowCoordinatable>: AnyFlowStack {
     
     public func setParent(_ parent: any Coordinatable) {
         self.parent = parent
+    }
+    
+    func setAnimation(animation: Animation?) {
+        self.animation = animation
     }
 }
 
@@ -90,5 +96,11 @@ extension FlowStack {
         }
         
         return targetDestination
+    }
+    
+    func setRoot(root: Destination, animation: Animation?) {
+        withAnimation(animation ?? self.animation) {
+            self.root = root
+        }
     }
 }
