@@ -11,6 +11,7 @@ public protocol CoordinatableView: View {
     var coordinator: any Coordinatable { get }
 }
 
+@MainActor
 public extension CoordinatableView {
     @ViewBuilder
     func wrappedView(_ destination: Destination) -> some View {

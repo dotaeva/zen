@@ -59,6 +59,7 @@ extension TabCoordinatable {
     }
 }
 
+@MainActor
 public extension TabCoordinatable {
     @discardableResult
     func selectFirstTab(_ tab: Destinations.Meta) -> Self {

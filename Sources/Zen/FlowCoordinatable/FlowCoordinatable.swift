@@ -51,6 +51,7 @@ public extension FlowCoordinatable {
     }
 }
 
+@MainActor
 extension FlowCoordinatable {
     func bindingStack(for destinationType: DestinationType) -> Binding<[Destination]> {
         guard destinationType == .push else {
@@ -297,6 +298,7 @@ extension FlowCoordinatable {
     }
 }
 
+@MainActor
 public extension FlowCoordinatable {
     @discardableResult
     func setRoot(_ destination: Destinations, animation: Animation? = nil) -> Self {

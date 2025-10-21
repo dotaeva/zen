@@ -13,6 +13,7 @@ public protocol RootCoordinatable: Coordinatable where ViewType == RootCoordinat
     var anyRoot: any AnyRoot { get }
 }
 
+@MainActor
 public extension RootCoordinatable {
     var _dataId: ObjectIdentifier {
         root.id
@@ -49,6 +50,7 @@ public extension RootCoordinatable {
     }
 }
 
+@MainActor
 public extension RootCoordinatable {
     @discardableResult
     func setRoot(_ destination: Destinations, animation: Animation? = nil) -> Self {
