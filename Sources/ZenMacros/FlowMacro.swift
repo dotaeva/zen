@@ -24,17 +24,22 @@ public struct FlowMacro: MemberMacro {
         
         let className = classDecl.name.text
         let coordinatableType = try determineCoordinatableType(from: classDecl)
+        let isPublic = classDecl.modifiers.contains { modifier in
+            modifier.name.text == "public"
+        }
         
         let functions = extractFunctions(from: classDecl)
         let trackedFunctions = try filterTrackedFunctions(functions, coordinatableType: coordinatableType, context: context)
         
         let destinationsEnum = try generateDestinationsEnum(
             className: className,
-            functions: trackedFunctions
+            functions: trackedFunctions,
+            isPublic: isPublic
         )
         
         return [DeclSyntax(destinationsEnum)]
     }
+    
     
     private static func determineCoordinatableType(from classDecl: ClassDeclSyntax) throws -> CoordinatableType {
         let inheritanceTypes = classDecl.inheritanceClause?.inheritedTypes.compactMap { type in
@@ -138,7 +143,8 @@ public struct FlowMacro: MemberMacro {
     
     private static func generateDestinationsEnum(
         className: String,
-        functions: [TrackedFunction]
+        functions: [TrackedFunction],
+        isPublic: Bool
     ) throws -> EnumDeclSyntax {
         
         // Generate Meta enum cases
@@ -167,17 +173,14 @@ public struct FlowMacro: MemberMacro {
             valueSwitchCases.append(try generateValueCaseSwitch(for: function))
         }
         
-        let destinationsEnum = try EnumDeclSyntax("enum Destinations: Destinationable") {
+        let accessModifier = isPublic ? "public " : ""
+        
+        let destinationsEnum = try EnumDeclSyntax("\(raw: accessModifier)enum Destinations: Destinationable") {
             // typealias Owner = ClassName
-            TypeAliasDeclSyntax(
-                name: .identifier("Owner"),
-                initializer: TypeInitializerClauseSyntax(
-                    value: IdentifierTypeSyntax(name: .identifier(className))
-                )
-            )
+            DeclSyntax("\(raw: accessModifier)typealias Owner = \(raw: className)")
             
             // Meta enum
-            try EnumDeclSyntax("enum Meta: DestinationMeta") {
+            try EnumDeclSyntax("\(raw: accessModifier)enum Meta: DestinationMeta") {
                 for caseElement in metaCases {
                     EnumCaseDeclSyntax {
                         caseElement
@@ -191,7 +194,7 @@ public struct FlowMacro: MemberMacro {
             }
             
             // meta computed property
-            try VariableDeclSyntax("var meta: Meta") {
+            try VariableDeclSyntax("\(raw: accessModifier)var meta: Meta") {
                 AccessorDeclSyntax(accessorSpecifier: .keyword(.get)) {
                     SwitchExprSyntax(subject: DeclReferenceExprSyntax(baseName: .keyword(.`self`))) {
                         for switchCase in metaSwitchCases {
@@ -202,7 +205,7 @@ public struct FlowMacro: MemberMacro {
             }
             
             // value function
-            try FunctionDeclSyntax("func value(for instance: Owner) -> Destination") {
+            try FunctionDeclSyntax("\(raw: accessModifier)func value(for instance: Owner) -> Destination") {
                 SwitchExprSyntax(subject: DeclReferenceExprSyntax(baseName: .keyword(.`self`))) {
                     for switchCase in valueSwitchCases {
                         switchCase
@@ -280,7 +283,7 @@ public struct FlowMacro: MemberMacro {
         
         return Trivia(pieces: triviaPieces)
     }
-
+    
     private static func extractFunctionBodyLines(from function: FunctionDeclSyntax) -> [String] {
         guard let body = function.body else {
             return ["{ }"]
@@ -310,14 +313,14 @@ public struct FlowMacro: MemberMacro {
         
         return ["{ }"]
     }
-
+    
     private static func preserveFormattingLines(_ text: String) -> [String] {
         let lines = text.components(separatedBy: .newlines)
         
         let trimmedLines = lines.drop { $0.trimmingCharacters(in: .whitespaces).isEmpty }
-                               .reversed()
-                               .drop { $0.trimmingCharacters(in: .whitespaces).isEmpty }
-                               .reversed()
+            .reversed()
+            .drop { $0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .reversed()
         
         return Array(trimmedLines)
     }
