@@ -30,7 +30,11 @@ public class Root<Coordinator: RootCoordinatable>: AnyRoot {
     public func setup(for coordinator: Coordinator) {
         guard !isSetup else { return }
         if let rootDestination = initialRoot, root == nil {
-            root = rootDestination.value(for: coordinator)
+            var rootDest = rootDestination.value(for: coordinator)
+            
+            rootDest.coordinatable?.setHasLayerNavigationCoordinatable(self.hasLayerNavigationCoordinator)
+            
+            root = rootDest
             self.initialRoot = nil
         }
         self.isSetup = true
@@ -48,6 +52,7 @@ public class Root<Coordinator: RootCoordinatable>: AnyRoot {
 extension Root {
     func setRoot(root: Destination, animation: Animation?) {
         withAnimation(animation ?? self.animation) {
+            root.coordinatable?.setHasLayerNavigationCoordinatable(self.hasLayerNavigationCoordinator)
             self.root = root
         }
     }

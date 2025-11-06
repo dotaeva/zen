@@ -169,7 +169,7 @@ extension FlowCoordinatable {
         var flattened: [Destination] = []
         
         func flattenRecursively(_ destinations: [Destination]) {
-            for destination in destinations {
+            for (index, destination) in destinations.enumerated() {
                 if destination.pushType == .sheet || destination.pushType == .fullScreenCover {
                     continue
                 }
@@ -195,7 +195,9 @@ extension FlowCoordinatable {
         }
         
         func flattenFromRootCoordinator(_ rootCoordinator: any RootCoordinatable) {
-            guard let rootDestination = rootCoordinator.anyRoot.root else { return }
+            guard let rootDestination = rootCoordinator.anyRoot.root else {
+                return
+            }
             
             if let nestedFlow = rootDestination.coordinatable as? any FlowCoordinatable {
                 flattenRecursively(nestedFlow.anyStack.destinations)
@@ -210,17 +212,26 @@ extension FlowCoordinatable {
             }
         }
         
+        if let rootDest = self.anyStack.root {
+            if let rootCoord = rootDest.coordinatable as? any FlowCoordinatable {
+                if rootCoord.hasLayerNavigationCoordinatable {
+                    flattenRecursively(rootCoord.anyStack.destinations)
+                }
+            }
+        }
+        
         flattenRecursively(self.anyStack.destinations)
+        
         return flattened
     }
-    
+
     private func reconstructDestinations(from flattenedDestinations: [Destination], for destinationType: DestinationType) {
         var flatIndex = 0
         
         func reconstructRecursively(for coordinator: any FlowCoordinatable) -> [Destination] {
             var newDestinations: [Destination] = []
             
-            for originalDestination in coordinator.anyStack.destinations {
+            for (index, originalDestination) in coordinator.anyStack.destinations.enumerated() {
                 if originalDestination.pushType == .sheet || originalDestination.pushType == .fullScreenCover {
                     newDestinations.append(originalDestination)
                     continue
@@ -228,12 +239,11 @@ extension FlowCoordinatable {
                 
                 if originalDestination.pushType == destinationType {
                     if flatIndex < flattenedDestinations.count {
-                        newDestinations.append(flattenedDestinations[flatIndex])
+                        let flatDest = flattenedDestinations[flatIndex]
+                        newDestinations.append(flatDest)
                         flatIndex += 1
                     }
                 } else if originalDestination.pushType == .push {
-                    let updatedDestination = originalDestination
-                    
                     if let nestedCoordinator = originalDestination.coordinatable as? any FlowCoordinatable {
                         let reconstructedNested = reconstructRecursively(for: nestedCoordinator)
                         nestedCoordinator.anyStack.destinations = reconstructedNested
@@ -248,7 +258,7 @@ extension FlowCoordinatable {
                         reconstructFromRootCoordinator(rootCoordinator)
                     }
                     
-                    newDestinations.append(updatedDestination)
+                    newDestinations.append(originalDestination)
                 } else {
                     newDestinations.append(originalDestination)
                 }
@@ -258,7 +268,9 @@ extension FlowCoordinatable {
         }
         
         func reconstructFromRootCoordinator(_ rootCoordinator: any RootCoordinatable) {
-            guard let rootDestination = rootCoordinator.anyRoot.root else { return }
+            guard let rootDestination = rootCoordinator.anyRoot.root else {
+                return
+            }
             
             if let nestedFlow = rootDestination.coordinatable as? any FlowCoordinatable {
                 let reconstructedNested = reconstructRecursively(for: nestedFlow)
@@ -275,7 +287,17 @@ extension FlowCoordinatable {
             }
         }
         
-        self.anyStack.destinations = reconstructRecursively(for: self)
+        // Handle if root is a FlowCoordinatable and reconstruct its destinations
+        if let rootDest = self.anyStack.root,
+           let rootCoord = rootDest.coordinatable as? any FlowCoordinatable,
+           rootCoord.hasLayerNavigationCoordinatable {
+            let reconstructedRoot = reconstructRecursively(for: rootCoord)
+            rootCoord.anyStack.destinations = reconstructedRoot
+        }
+        
+        let reconstructed = reconstructRecursively(for: self)
+        
+        self.anyStack.destinations = reconstructed
     }
     
     private func checkForMultipleModals(pushType: DestinationType) {
@@ -353,8 +375,8 @@ public extension FlowCoordinatable {
     func route<T>(
         to destination: Destinations,
         as pushType: DestinationType = .push,
+        onDismiss: @escaping () -> Void = { },
         value: @escaping (T) -> Void,
-        onDismiss: @escaping () -> Void = { }
     ) -> Self {
         var dest = destination.value(for: self)
         
@@ -429,7 +451,7 @@ public extension FlowCoordinatable {
         _ destination: Destinations.Meta,
         value: @escaping (T) -> Void,
     ) -> Self {
-        guard let dest = stack.popToFirst(destination) else { return self }
+        guard let dest = stack.popToLast(destination) else { return self }
         
         if dest.coordinatable != nil, let coordinatable = dest.coordinatable as? T {
             value(coordinatable)

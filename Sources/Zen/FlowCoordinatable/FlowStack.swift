@@ -33,7 +33,11 @@ public class FlowStack<Coordinator: FlowCoordinatable>: AnyFlowStack {
     public func setup(for coordinator: Coordinator) {
         guard !isSetup else { return }
         if let rootDestination = initialRoot, root == nil {
-            root = rootDestination.value(for: coordinator)
+            var rootDest = rootDestination.value(for: coordinator)
+            
+            rootDest.coordinatable?.setHasLayerNavigationCoordinatable(true)
+            
+            root = rootDest
             self.initialRoot = nil
         }
         self.isSetup = true
@@ -100,6 +104,7 @@ extension FlowStack {
     
     func setRoot(root: Destination, animation: Animation?) {
         withAnimation(animation ?? self.animation) {
+            root.coordinatable?.setHasLayerNavigationCoordinatable(true)
             self.root = root
         }
     }
