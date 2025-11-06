@@ -151,14 +151,15 @@ coordinator.route(to: .settings) { (settings: SettingsCoordinator) in
 Customize how coordinator views are presented:
 
 ```swift
-func customize(_ view: AnyView) -> AnyView {
-    AnyView(
-        view
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { /* Custom toolbar */ }
-    )
+@FlowIgnored
+func customize(_ view: AnyView) -> some View {
+    view
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { /* Custom toolbar */ }
 }
 ```
+
+> **Note**: Due to the customize functions' return type being `some View`, it's being automatically tracked as well.
 
 ### Environment Integration
 
@@ -184,7 +185,7 @@ Generates the `Destinations` enum for your coordinator. Applied to coordinator c
 
 ### @FlowTracked
 
-Explicitly includes a method in destination generation (useful for methods that don't return View or Coordinatable).
+Explicitly includes a method in destination generation.
 
 ### @FlowIgnored
 
