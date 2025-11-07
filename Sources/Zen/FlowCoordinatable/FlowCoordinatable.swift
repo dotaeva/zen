@@ -507,6 +507,8 @@ public struct FlowCoordinatableView: CoordinatableView {
                     if _coordinator.anyStack.hasLayerNavigationCoordinator {
                         if let rootView = _coordinator.anyStack.root?.view {
                             AnyView(rootView)
+                        } else if let c = _coordinator.anyStack.root?.coordinatable {
+                            AnyView(c.view())
                         } else {
                             EmptyView()
                         }
