@@ -36,6 +36,7 @@ public class TabItems<Coordinator: TabCoordinatable>: AnyTabItems {
         self.tabs = initialTabs.map {
             let t = $0.value(for: coordinator)
             t.coordinatable?.setHasLayerNavigationCoordinatable(coordinator.hasLayerNavigationCoordinatable)
+            t.coordinatable?.setParent(coordinator) 
             return t
         }
         selectedTab = tabs.first?.id

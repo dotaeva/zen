@@ -170,6 +170,7 @@ public extension TabCoordinatable {
         let tabs = tabs.map {
             let t = $0.value(for: self)
             t.coordinatable?.setHasLayerNavigationCoordinatable(self.hasLayerNavigationCoordinatable)
+            t.coordinatable?.setParent(self)
             return t
         }
         
@@ -182,6 +183,7 @@ public extension TabCoordinatable {
     func appendTab(_ tab: Destinations) -> Self {
         let tab = tab.value(for: self)
         tab.coordinatable?.setHasLayerNavigationCoordinatable(self.hasLayerNavigationCoordinatable)
+        tab.coordinatable?.setParent(self)
         
         let _ = tabItems.appendTab(tab)
         
@@ -195,6 +197,7 @@ public extension TabCoordinatable {
     ) -> Self {
         let t = tab.value(for: self)
         t.coordinatable?.setHasLayerNavigationCoordinatable(self.hasLayerNavigationCoordinatable)
+        t.coordinatable?.setParent(self)
         
         let tab = tabItems.appendTab(t)
         
@@ -213,6 +216,7 @@ public extension TabCoordinatable {
     func insertTab(_ tab: Destinations, at index: Int) -> Self {
         let tab = tab.value(for: self)
         tab.coordinatable?.setHasLayerNavigationCoordinatable(self.hasLayerNavigationCoordinatable)
+        tab.coordinatable?.setParent(self)
         
         let _ = tabItems.insertTab(tab, at: index)
         
@@ -227,6 +231,7 @@ public extension TabCoordinatable {
     ) -> Self {
         let t = tab.value(for: self)
         t.coordinatable?.setHasLayerNavigationCoordinatable(self.hasLayerNavigationCoordinatable)
+        t.coordinatable?.setParent(self)
         
         let tab = tabItems.insertTab(t, at: index)
         
@@ -274,6 +279,7 @@ public struct TabCoordinatableView: CoordinatableView {
             Group {
                 ForEach(_coordinator.anyTabItems.tabs) { tab in
                     wrappedView(tab)
+                        .environmentCoordinatable(coordinator)
                         .tabItem {
                             if let tabItem = tab.tabItem {
                                 AnyView(tabItem)

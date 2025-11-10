@@ -18,7 +18,24 @@ public extension View {
         let observableObject = object as AnyObject
         
         if let observable = observableObject as? (any AnyObject & Observable) {
-            return AnyView(self.environment(observable))
+            var coordinators: [any AnyObject & Observable] = [observable]
+            
+            if let coordinatable = observable as? any Coordinatable {
+                var currentParent = coordinatable.parent
+                while let parent = currentParent {
+                    if let parentObservable = parent as? (any AnyObject & Observable) {
+                        coordinators.append(parentObservable)
+                    }
+                    currentParent = parent.parent
+                }
+            }
+            
+            var result: any View = self
+            for coordinator in coordinators {
+                result = result.environment(coordinator)
+            }
+            
+            return AnyView(result)
         }
         
         return AnyView(self)

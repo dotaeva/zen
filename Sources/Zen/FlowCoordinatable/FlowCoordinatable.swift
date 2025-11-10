@@ -51,6 +51,7 @@ public extension FlowCoordinatable {
     }
 }
 
+// MARK: - Navigation Stack Binding
 @MainActor
 extension FlowCoordinatable {
     func bindingStack(for destinationType: DestinationType) -> Binding<[Destination]> {
@@ -59,12 +60,16 @@ extension FlowCoordinatable {
         }
         
         return .init {
-            return self.flattenDestinations(for: destinationType)
+            self.flattenDestinations(for: destinationType)
         } set: { newValue in
             self.reconstructDestinations(from: newValue, for: destinationType)
         }
     }
-    
+}
+
+// MARK: - Modal Handling
+@MainActor
+extension FlowCoordinatable {
     func modalDestinations(for destinationType: DestinationType) -> [Destination] {
         guard destinationType == .sheet || destinationType == .fullScreenCover else {
             return []
@@ -72,31 +77,21 @@ extension FlowCoordinatable {
         
         var flattened: [Destination] = []
         
+        // Check root destination first
+        if let rootDest = self.anyStack.root {
+            traverseCoordinatable(rootDest.coordinatable) { nestedFlow in
+                flattened.append(contentsOf: nestedFlow.modalDestinations(for: destinationType))
+            }
+        }
+        
+        // Then check self destinations
         for destination in self.anyStack.destinations {
             if destination.pushType == destinationType {
                 flattened.append(destination)
             }
             
-            // Handle nested FlowCoordinatable
-            if let nestedCoordinator = destination.coordinatable as? any FlowCoordinatable {
-                let nestedModals = nestedCoordinator.modalDestinations(for: destinationType)
-                flattened.append(contentsOf: nestedModals)
-            }
-            // Handle TabCoordinatable
-            else if let tabCoordinator = destination.coordinatable as? any TabCoordinatable {
-                if let selectedTabId = tabCoordinator.anyTabItems.selectedTab,
-                   let selectedTab = tabCoordinator.anyTabItems.tabs.first(where: { $0.id == selectedTabId }),
-                   let nestedFlow = selectedTab.coordinatable as? any FlowCoordinatable {
-                    let nestedModals = nestedFlow.modalDestinations(for: destinationType)
-                    flattened.append(contentsOf: nestedModals)
-                }
-            }
-            // Handle RootCoordinatable
-            else if let rootCoordinator = destination.coordinatable as? any RootCoordinatable {
-                if let rootDestination = rootCoordinator.anyRoot.root {
-                    let nestedModals = modalDestinationsFromRootDestination(rootDestination, for: destinationType)
-                    flattened.append(contentsOf: nestedModals)
-                }
+            traverseCoordinatable(destination.coordinatable) { nestedFlow in
+                flattened.append(contentsOf: nestedFlow.modalDestinations(for: destinationType))
             }
         }
         
@@ -104,73 +99,33 @@ extension FlowCoordinatable {
     }
     
     func removeModalDestination(withId id: UUID, type: DestinationType) {
+        // Check root destination first
+        if let rootDest = self.anyStack.root {
+            traverseCoordinatable(rootDest.coordinatable) { nestedFlow in
+                nestedFlow.removeModalDestination(withId: id, type: type)
+            }
+        }
+        
+        // Then check self destinations
         anyStack.destinations.removeAll { $0.id == id && $0.pushType == type }
         
         for destination in anyStack.destinations {
-            // Handle nested FlowCoordinatable
-            if let nestedCoordinator = destination.coordinatable as? any FlowCoordinatable {
-                nestedCoordinator.removeModalDestination(withId: id, type: type)
-            }
-            // Handle TabCoordinatable
-            else if let tabCoordinator = destination.coordinatable as? any TabCoordinatable {
-                if let selectedTabId = tabCoordinator.anyTabItems.selectedTab,
-                   let selectedTab = tabCoordinator.anyTabItems.tabs.first(where: { $0.id == selectedTabId }),
-                   let nestedFlow = selectedTab.coordinatable as? any FlowCoordinatable {
-                    nestedFlow.removeModalDestination(withId: id, type: type)
-                }
-            }
-            // Handle RootCoordinatable
-            else if let rootCoordinator = destination.coordinatable as? any RootCoordinatable {
-                removeModalDestinationFromRootCoordinator(rootCoordinator, withId: id, type: type)
-            }
-        }
-    }
-    
-    private func modalDestinationsFromRootDestination(_ destination: Destination, for destinationType: DestinationType) -> [Destination] {
-        var modals: [Destination] = []
-        
-        if let nestedFlow = destination.coordinatable as? any FlowCoordinatable {
-            let nestedModals = nestedFlow.modalDestinations(for: destinationType)
-            modals.append(contentsOf: nestedModals)
-        } else if let tabCoordinator = destination.coordinatable as? any TabCoordinatable {
-            if let selectedTabId = tabCoordinator.anyTabItems.selectedTab,
-               let selectedTab = tabCoordinator.anyTabItems.tabs.first(where: { $0.id == selectedTabId }),
-               let nestedFlow = selectedTab.coordinatable as? any FlowCoordinatable {
-                let nestedModals = nestedFlow.modalDestinations(for: destinationType)
-                modals.append(contentsOf: nestedModals)
-            }
-        } else if let rootCoordinator = destination.coordinatable as? any RootCoordinatable {
-            if let rootDestination = rootCoordinator.anyRoot.root {
-                let nestedModals = modalDestinationsFromRootDestination(rootDestination, for: destinationType)
-                modals.append(contentsOf: nestedModals)
-            }
-        }
-        
-        return modals
-    }
-    
-    private func removeModalDestinationFromRootCoordinator(_ rootCoordinator: any RootCoordinatable, withId id: UUID, type: DestinationType) {
-        guard let rootDestination = rootCoordinator.anyRoot.root else { return }
-        
-        if let nestedFlow = rootDestination.coordinatable as? any FlowCoordinatable {
-            nestedFlow.removeModalDestination(withId: id, type: type)
-        } else if let tabCoordinator = rootDestination.coordinatable as? any TabCoordinatable {
-            if let selectedTabId = tabCoordinator.anyTabItems.selectedTab,
-               let selectedTab = tabCoordinator.anyTabItems.tabs.first(where: { $0.id == selectedTabId }),
-               let nestedFlow = selectedTab.coordinatable as? any FlowCoordinatable {
+            traverseCoordinatable(destination.coordinatable) { nestedFlow in
                 nestedFlow.removeModalDestination(withId: id, type: type)
             }
-        } else if let nestedRootCoordinator = rootDestination.coordinatable as? any RootCoordinatable {
-            removeModalDestinationFromRootCoordinator(nestedRootCoordinator, withId: id, type: type)
         }
     }
-    
-    private func flattenDestinations(for destinationType: DestinationType) -> [Destination] {
+}
+
+// MARK: - Flatten & Reconstruct
+@MainActor
+private extension FlowCoordinatable {
+    func flattenDestinations(for destinationType: DestinationType) -> [Destination] {
         var flattened: [Destination] = []
         
         func flattenRecursively(_ destinations: [Destination]) {
-            for (index, destination) in destinations.enumerated() {
-                if destination.pushType == .sheet || destination.pushType == .fullScreenCover {
+            for destination in destinations {
+                guard destination.pushType != .sheet && destination.pushType != .fullScreenCover else {
                     continue
                 }
                 
@@ -179,43 +134,18 @@ extension FlowCoordinatable {
                 }
                 
                 if destination.pushType == .push {
-                    if let nestedCoordinator = destination.coordinatable as? any FlowCoordinatable {
-                        flattenRecursively(nestedCoordinator.anyStack.destinations)
-                    } else if let tabCoordinator = destination.coordinatable as? any TabCoordinatable {
-                        if let selectedTabId = tabCoordinator.anyTabItems.selectedTab,
-                           let selectedTab = tabCoordinator.anyTabItems.tabs.first(where: { $0.id == selectedTabId }),
-                           let nestedFlow = selectedTab.coordinatable as? any FlowCoordinatable {
-                            flattenRecursively(nestedFlow.anyStack.destinations)
-                        }
-                    } else if let rootCoordinator = destination.coordinatable as? any RootCoordinatable {
-                        flattenFromRootCoordinator(rootCoordinator)
+                    traverseCoordinatable(destination.coordinatable) { nestedFlow in
+                        flattenRecursively(nestedFlow.anyStack.destinations)
                     }
                 }
             }
         }
         
-        func flattenFromRootCoordinator(_ rootCoordinator: any RootCoordinatable) {
-            guard let rootDestination = rootCoordinator.anyRoot.root else {
-                return
-            }
-            
-            if let nestedFlow = rootDestination.coordinatable as? any FlowCoordinatable {
-                flattenRecursively(nestedFlow.anyStack.destinations)
-            } else if let tabCoordinator = rootDestination.coordinatable as? any TabCoordinatable {
-                if let selectedTabId = tabCoordinator.anyTabItems.selectedTab,
-                   let selectedTab = tabCoordinator.anyTabItems.tabs.first(where: { $0.id == selectedTabId }),
-                   let nestedFlow = selectedTab.coordinatable as? any FlowCoordinatable {
-                    flattenRecursively(nestedFlow.anyStack.destinations)
-                }
-            } else if let nestedRootCoordinator = rootDestination.coordinatable as? any RootCoordinatable {
-                flattenFromRootCoordinator(nestedRootCoordinator)
-            }
-        }
-        
+        // Handle root
         if let rootDest = self.anyStack.root {
-            if let rootCoord = rootDest.coordinatable as? any FlowCoordinatable {
-                if rootCoord.hasLayerNavigationCoordinatable {
-                    flattenRecursively(rootCoord.anyStack.destinations)
+            traverseCoordinatable(rootDest.coordinatable) { rootFlow in
+                if rootFlow.hasLayerNavigationCoordinatable {
+                    flattenRecursively(rootFlow.anyStack.destinations)
                 }
             }
         }
@@ -231,7 +161,7 @@ extension FlowCoordinatable {
         func reconstructRecursively(for coordinator: any FlowCoordinatable) -> [Destination] {
             var newDestinations: [Destination] = []
             
-            for (index, originalDestination) in coordinator.anyStack.destinations.enumerated() {
+            for originalDestination in coordinator.anyStack.destinations {
                 if originalDestination.pushType == .sheet || originalDestination.pushType == .fullScreenCover {
                     newDestinations.append(originalDestination)
                     continue
@@ -240,25 +170,78 @@ extension FlowCoordinatable {
                 if originalDestination.pushType == destinationType {
                     if flatIndex < flattenedDestinations.count {
                         let flatDest = flattenedDestinations[flatIndex]
-                        newDestinations.append(flatDest)
-                        flatIndex += 1
+                        
+                        // Check if this destination matches the current flattened one
+                        if flatDest.id == originalDestination.id {
+                            newDestinations.append(flatDest)
+                            flatIndex += 1
+                            
+                            // Process nested coordinator if this is a push destination
+                            if originalDestination.pushType == .push {
+                                traverseCoordinatable(originalDestination.coordinatable) { nestedFlow in
+                                    let reconstructedNested = reconstructRecursively(for: nestedFlow)
+                                    nestedFlow.anyStack.destinations = reconstructedNested
+                                }
+                            }
+                        }
+                        // Don't add this destination - it was popped
                     }
+                    // Don't add - this destination was popped
                 } else if originalDestination.pushType == .push {
-                    if let nestedCoordinator = originalDestination.coordinatable as? any FlowCoordinatable {
-                        let reconstructedNested = reconstructRecursively(for: nestedCoordinator)
-                        nestedCoordinator.anyStack.destinations = reconstructedNested
-                    } else if let tabCoordinator = originalDestination.coordinatable as? any TabCoordinatable {
-                        if let selectedTabId = tabCoordinator.anyTabItems.selectedTab,
-                           let selectedTab = tabCoordinator.anyTabItems.tabs.first(where: { $0.id == selectedTabId }),
-                           let nestedFlow = selectedTab.coordinatable as? any FlowCoordinatable {
+                    // For non-matching push types, we need to check if this should still exist
+                    // by seeing if any of the remaining flattened destinations are within this coordinator
+                    
+                    var hasNestedDestinations = false
+                    let savedFlatIndex = flatIndex
+                    
+                    // Check if any remaining flattened destinations belong to this nested coordinator
+                    traverseCoordinatable(originalDestination.coordinatable) { nestedFlow in
+                        // Collect all destination IDs that belong to this nested flow
+                        var nestedDestinationIds = Set<UUID>()
+                        
+                        @MainActor func collectNestedIds(from flow: any FlowCoordinatable) {
+                            for dest in flow.anyStack.destinations {
+                                if dest.pushType != .sheet && dest.pushType != .fullScreenCover {
+                                    nestedDestinationIds.insert(dest.id)
+                                    
+                                    if dest.pushType == .push {
+                                        traverseCoordinatable(dest.coordinatable) { innerFlow in
+                                            collectNestedIds(from: innerFlow)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        collectNestedIds(from: nestedFlow)
+                        
+                        // Count how many of the remaining flattened destinations belong to this nested flow
+                        var tempIndex = savedFlatIndex
+                        var nestedCount = 0
+                        
+                        while tempIndex < flattenedDestinations.count {
+                            if nestedDestinationIds.contains(flattenedDestinations[tempIndex].id) {
+                                nestedCount += 1
+                                tempIndex += 1
+                            } else {
+                                // This destination doesn't belong to this nested coordinator
+                                break
+                            }
+                        }
+                        
+                        if nestedCount > 0 {
+                            hasNestedDestinations = true
                             let reconstructedNested = reconstructRecursively(for: nestedFlow)
                             nestedFlow.anyStack.destinations = reconstructedNested
+                        } else {
+                            // Clear the nested destinations
+                            nestedFlow.anyStack.destinations = []
                         }
-                    } else if let rootCoordinator = originalDestination.coordinatable as? any RootCoordinatable {
-                        reconstructFromRootCoordinator(rootCoordinator)
                     }
                     
-                    newDestinations.append(originalDestination)
+                    if hasNestedDestinations {
+                        newDestinations.append(originalDestination)
+                    }
                 } else {
                     newDestinations.append(originalDestination)
                 }
@@ -267,40 +250,44 @@ extension FlowCoordinatable {
             return newDestinations
         }
         
-        func reconstructFromRootCoordinator(_ rootCoordinator: any RootCoordinatable) {
-            guard let rootDestination = rootCoordinator.anyRoot.root else {
-                return
-            }
-            
-            if let nestedFlow = rootDestination.coordinatable as? any FlowCoordinatable {
-                let reconstructedNested = reconstructRecursively(for: nestedFlow)
-                nestedFlow.anyStack.destinations = reconstructedNested
-            } else if let tabCoordinator = rootDestination.coordinatable as? any TabCoordinatable {
-                if let selectedTabId = tabCoordinator.anyTabItems.selectedTab,
-                   let selectedTab = tabCoordinator.anyTabItems.tabs.first(where: { $0.id == selectedTabId }),
-                   let nestedFlow = selectedTab.coordinatable as? any FlowCoordinatable {
-                    let reconstructedNested = reconstructRecursively(for: nestedFlow)
-                    nestedFlow.anyStack.destinations = reconstructedNested
+        if let rootDest = self.anyStack.root {
+            traverseCoordinatable(rootDest.coordinatable) { rootFlow in
+                if rootFlow.hasLayerNavigationCoordinatable {
+                    if !flattenedDestinations.isEmpty {
+                        let reconstructedRoot = reconstructRecursively(for: rootFlow)
+                        rootFlow.anyStack.destinations = reconstructedRoot
+                    } else {
+                        rootFlow.anyStack.destinations = []
+                    }
                 }
-            } else if let nestedRootCoordinator = rootDestination.coordinatable as? any RootCoordinatable {
-                reconstructFromRootCoordinator(nestedRootCoordinator)
             }
-        }
-        
-        // Handle if root is a FlowCoordinatable and reconstruct its destinations
-        if let rootDest = self.anyStack.root,
-           let rootCoord = rootDest.coordinatable as? any FlowCoordinatable,
-           rootCoord.hasLayerNavigationCoordinatable {
-            let reconstructedRoot = reconstructRecursively(for: rootCoord)
-            rootCoord.anyStack.destinations = reconstructedRoot
         }
         
         let reconstructed = reconstructRecursively(for: self)
-        
         self.anyStack.destinations = reconstructed
     }
+}
+
+@MainActor
+private extension FlowCoordinatable {
+    func traverseCoordinatable(_ coordinatable: (any Coordinatable)?, action: (any FlowCoordinatable) -> Void) {
+        guard let coordinatable = coordinatable else { return }
+        
+        if let flowCoordinator = coordinatable as? any FlowCoordinatable {
+            action(flowCoordinator)
+        } else if let tabCoordinator = coordinatable as? any TabCoordinatable {
+            if let selectedTabId = tabCoordinator.anyTabItems.selectedTab,
+               let selectedTab = tabCoordinator.anyTabItems.tabs.first(where: { $0.id == selectedTabId }),
+               let nestedFlow = selectedTab.coordinatable as? any FlowCoordinatable {
+                action(nestedFlow)
+            }
+        } else if let rootCoordinator = coordinatable as? any RootCoordinatable,
+                  let rootDestination = rootCoordinator.anyRoot.root {
+            traverseCoordinatable(rootDestination.coordinatable, action: action)
+        }
+    }
     
-    private func checkForMultipleModals(pushType: DestinationType) {
+    func checkForMultipleModals(pushType: DestinationType) {
         func findLayerFlowParent(lookup: (any Coordinatable)?) -> any FlowCoordinatable {
             if let flowCoordinatable = lookup as? (any FlowCoordinatable) {
                 if !flowCoordinatable.anyStack.hasLayerNavigationCoordinator {
@@ -325,9 +312,8 @@ public extension FlowCoordinatable {
     @discardableResult
     func setRoot(_ destination: Destinations, animation: Animation? = nil) -> Self {
         let dest = destination.value(for: self)
-        
+        dest.coordinatable?.setParent(self)
         stack.setRoot(root: dest, animation: animation)
-        
         return self
     }
     
@@ -338,17 +324,9 @@ public extension FlowCoordinatable {
         value: @escaping (T) -> Void
     ) -> Self {
         let dest = destination.value(for: self)
-        
+        dest.coordinatable?.setParent(self)
         stack.setRoot(root: dest, animation: animation)
-        
-        if dest.coordinatable != nil, let coordinatable = dest.coordinatable as? T {
-            value(coordinatable)
-        } else if let view = dest.view as? T {
-            value(view)
-        } else {
-            fatalError("Could not cast to type \(T.self)")
-        }
-        
+        castAndExecute(from: dest, action: value)
         return self
     }
     
@@ -358,16 +336,7 @@ public extension FlowCoordinatable {
         as pushType: DestinationType = .push,
         onDismiss: @escaping () -> Void = { }
     ) -> Self {
-        var dest = destination.value(for: self)
-        
-        dest.setOnDismiss(onDismiss)
-        dest.setPushType(pushType)
-        dest.coordinatable?.setHasLayerNavigationCoordinatable(pushType == .push)
-        dest.coordinatable?.setParent(self)
-        
-        stack.push(destination: dest)
-        
-        checkForMultipleModals(pushType: pushType)
+        performRoute(to: destination, as: pushType, onDismiss: onDismiss)
         return self
     }
     
@@ -376,8 +345,70 @@ public extension FlowCoordinatable {
         to destination: Destinations,
         as pushType: DestinationType = .push,
         onDismiss: @escaping () -> Void = { },
-        value: @escaping (T) -> Void,
+        value: @escaping (T) -> Void
     ) -> Self {
+        let dest = performRoute(to: destination, as: pushType, onDismiss: onDismiss)
+        castAndExecute(from: dest, action: value)
+        return self
+    }
+    
+    @discardableResult
+    func pop() -> Self {
+        stack.pop()
+        return self
+    }
+    
+    @discardableResult
+    func popToRoot() -> Self {
+        stack.popToRoot()
+        return self
+    }
+    
+    @discardableResult
+    func popToFirst(_ destination: Destinations.Meta) -> Self {
+        _ = stack.popToFirst(destination)
+        return self
+    }
+    
+    @discardableResult
+    func popToFirst<T>(
+        _ destination: Destinations.Meta,
+        value: @escaping (T) -> Void
+    ) -> Self {
+        guard let dest = stack.popToFirst(destination) else { return self }
+        castAndExecute(from: dest, action: value)
+        return self
+    }
+    
+    @discardableResult
+    func popToLast(_ destination: Destinations.Meta) -> Self {
+        _ = stack.popToLast(destination)
+        return self
+    }
+    
+    @discardableResult
+    func popToLast<T>(
+        _ destination: Destinations.Meta,
+        value: @escaping (T) -> Void
+    ) -> Self {
+        guard let dest = stack.popToLast(destination) else { return self }
+        castAndExecute(from: dest, action: value)
+        return self
+    }
+    
+    func isInStack(_ destination: Destinations.Meta) -> Bool {
+        stack.destinations.contains { $0.meta as! Self.Destinations.Meta == destination }
+    }
+}
+
+@MainActor
+private extension FlowCoordinatable {
+    @discardableResult
+    func performRoute(
+        to destination: Destinations,
+        as pushType: DestinationType,
+        onDismiss: @escaping () -> Void
+    ) -> Destination {
         var dest = destination.value(for: self)
         
         dest.setOnDismiss(onDismiss)
@@ -388,84 +419,17 @@ public extension FlowCoordinatable {
         stack.push(destination: dest)
         
         checkForMultipleModals(pushType: pushType)
-        
-        if dest.coordinatable != nil, let coordinatable = dest.coordinatable as? T {
-            value(coordinatable)
+        return dest
+    }
+    
+    func castAndExecute<T>(from dest: Destination, action: @escaping (T) -> Void) {
+        if let coordinatable = dest.coordinatable as? T {
+            action(coordinatable)
         } else if let view = dest.view as? T {
-            value(view)
+            action(view)
         } else {
             fatalError("Could not cast to type \(T.self)")
         }
-        
-        return self
-    }
-    
-    @discardableResult
-    func pop() -> Self {
-        stack.pop()
-        
-        return self
-    }
-    
-    @discardableResult
-    func popToRoot() -> Self {
-        stack.popToRoot()
-        
-        return self
-    }
-    
-    @discardableResult
-    func popToFirst(_ destination: Destinations.Meta) -> Self {
-        let _ = stack.popToFirst(destination)
-        
-        return self
-    }
-    
-    @discardableResult
-    func popToFirst<T>(
-        _ destination: Destinations.Meta,
-        value: @escaping (T) -> Void,
-    ) -> Self {
-        guard let dest = stack.popToFirst(destination) else { return self }
-        
-        if dest.coordinatable != nil, let coordinatable = dest.coordinatable as? T {
-            value(coordinatable)
-        } else if let view = dest.view as? T {
-            value(view)
-        } else {
-            fatalError("Could not cast to type \(T.self)")
-        }
-        
-        return self
-    }
-    
-    @discardableResult
-    func popToLast(_ destination: Destinations.Meta) -> Self {
-        let _ = stack.popToLast(destination)
-        
-        return self
-    }
-    
-    @discardableResult
-    func popToLast<T>(
-        _ destination: Destinations.Meta,
-        value: @escaping (T) -> Void,
-    ) -> Self {
-        guard let dest = stack.popToLast(destination) else { return self }
-        
-        if dest.coordinatable != nil, let coordinatable = dest.coordinatable as? T {
-            value(coordinatable)
-        } else if let view = dest.view as? T {
-            value(view)
-        } else {
-            fatalError("Could not cast to type \(T.self)")
-        }
-        
-        return self
-    }
-    
-    func isInStack(_ destination: Destinations.Meta) -> Bool {
-        return stack.destinations.contains(where: { $0.meta as! Self.Destinations.Meta == destination })
     }
 }
 
@@ -509,6 +473,7 @@ public struct FlowCoordinatableView: CoordinatableView {
                             AnyView(rootView)
                         } else if let c = _coordinator.anyStack.root?.coordinatable {
                             AnyView(c.view())
+                                .environmentCoordinatable(c)
                         } else {
                             EmptyView()
                         }

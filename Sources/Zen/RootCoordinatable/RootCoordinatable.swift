@@ -56,6 +56,7 @@ public extension RootCoordinatable {
     func setRoot(_ destination: Destinations, animation: Animation? = nil) -> Self {
         let dest = destination.value(for: self)
         
+        dest.coordinatable?.setParent(self)
         root.setRoot(root: dest, animation: animation)
         
         return self
@@ -69,6 +70,7 @@ public extension RootCoordinatable {
     ) -> Self {
         let dest = destination.value(for: self)
         
+        dest.coordinatable?.setParent(self)
         root.setRoot(root: dest, animation: animation)
         
         if dest.coordinatable != nil, let coordinatable = dest.coordinatable as? T {
@@ -102,6 +104,7 @@ public struct RootCoordinatableView: CoordinatableView {
     func coordinatableView() -> some View {
         if let root = _coordinator.anyRoot.root {
             wrappedView(root)
+                .environmentCoordinatable(coordinator)
                 .id(_coordinator.anyRoot.root?.id)
         } else {
             EmptyView()
