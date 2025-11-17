@@ -227,16 +227,20 @@ public struct FlowMacro: MemberMacro {
             
             return enumCaseDecl.with(\.leadingTrivia, docTrivia)
         } else {
-            let params = function.parameters.map { param in
+            let params = function.parameters.enumerated().map { (index, param) in
+                let isLast = index == function.parameters.count - 1
+                
                 if let label = param.label {
                     return EnumCaseParameterSyntax(
                         firstName: .identifier(label),
                         colon: .colonToken(),
-                        type: IdentifierTypeSyntax(name: .identifier(param.type))
+                        type: IdentifierTypeSyntax(name: .identifier(param.type)),
+                        trailingComma: isLast ? nil : .commaToken()
                     )
                 } else {
                     return EnumCaseParameterSyntax(
-                        type: IdentifierTypeSyntax(name: .identifier(param.type))
+                        type: IdentifierTypeSyntax(name: .identifier(param.type)),
+                        trailingComma: isLast ? nil : .commaToken()
                     )
                 }
             }
