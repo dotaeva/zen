@@ -474,7 +474,20 @@ struct Parameter {
             self.name = param.firstName.text == "_" ? "value" : param.firstName.text
         }
         
-        self.type = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Extract type and strip @escaping and other function-only attributes
+        let typeString = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.type = Self.stripFunctionAttributes(from: typeString)
+    }
+    
+    private static func stripFunctionAttributes(from typeString: String) -> String {
+        var result = typeString
+        
+        result = result.replacingOccurrences(of: "@escaping ", with: "")
+        result = result.replacingOccurrences(of: "@autoclosure ", with: "")
+        
+        result = result.replacingOccurrences(of: "  ", with: " ")
+        
+        return result.trimmingCharacters(in: .whitespaces)
     }
 }
 
