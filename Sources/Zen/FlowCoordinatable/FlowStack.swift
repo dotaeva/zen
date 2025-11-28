@@ -25,6 +25,7 @@ public class FlowStack<Coordinator: FlowCoordinatable>: AnyFlowStack {
     
     public var isSetup: Bool = false
     private var initialRoot: Coordinator.Destinations?
+    private var coordinator: Coordinator?
     
     public init(root: Coordinator.Destinations) {
         self.initialRoot = root
@@ -32,6 +33,7 @@ public class FlowStack<Coordinator: FlowCoordinatable>: AnyFlowStack {
     
     public func setup(for coordinator: Coordinator) {
         guard !isSetup else { return }
+        self.coordinator = coordinator
         if let rootDestination = initialRoot, root == nil {
             var rootDest = rootDestination.value(for: coordinator)
             
@@ -58,7 +60,10 @@ extension FlowStack {
     }
     
     func pop() {
-        guard !destinations.isEmpty else { return }
+        guard !destinations.isEmpty else {
+            coordinator?.dismissCoordinator()
+            return
+        }
         destinations.removeLast()
     }
     
@@ -67,6 +72,13 @@ extension FlowStack {
     }
     
     func popToFirst(_ destination: Coordinator.Destinations.Meta) -> Destination? {
+        if let root = root,
+           let rootMeta = root.meta as? Coordinator.Destinations.Meta,
+           rootMeta == destination {
+            popToRoot()
+            return root
+        }
+        
         guard let firstIndex = destinations.firstIndex(where: { dest in
             guard let destMeta = dest.meta as? Coordinator.Destinations.Meta else { return false }
             return destMeta == destination
@@ -85,6 +97,13 @@ extension FlowStack {
     }
     
     func popToLast(_ destination: Coordinator.Destinations.Meta) -> Destination? {
+        if let root = root,
+           let rootMeta = root.meta as? Coordinator.Destinations.Meta,
+           rootMeta == destination {
+            popToRoot()
+            return root
+        }
+        
         guard let lastIndex = destinations.lastIndex(where: { dest in
             guard let destMeta = dest.meta as? Coordinator.Destinations.Meta else { return false }
             return destMeta == destination
