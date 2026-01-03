@@ -6,7 +6,7 @@ import CompilerPluginSupport
 
 let package = Package(
     name: "Zen",
-    platforms: [.macOS(.v14), .iOS(.v17), .tvOS(.v13), .watchOS(.v6), .macCatalyst(.v13)],
+    platforms: [.macOS(.v14), .iOS(.v18), .tvOS(.v13), .watchOS(.v6), .macCatalyst(.v13)],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(

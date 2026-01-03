@@ -84,10 +84,19 @@ public struct FlowMacro: MemberMacro {
             let shouldAutoTrack = shouldAutoTrackFunction(returnType: returnTypeInfo)
             
             if hasFlowTracked || shouldAutoTrack {
-                if coordinatableType != .tab && (returnTypeInfo == .coordinatableViewTuple || returnTypeInfo == .viewViewTuple) {
+                // Warn about tuple types in non-TabCoordinatable
+                if coordinatableType != .tab && returnTypeInfo.isTupleType {
                     context.diagnose(Diagnostic(
                         node: function,
                         message: FlowMacroWarning.tupleIgnoredInNonTabCoordinatable
+                    ))
+                }
+                
+                // Warn about TabRole in non-TabCoordinatable
+                if coordinatableType != .tab && returnTypeInfo.hasTabRole {
+                    context.diagnose(Diagnostic(
+                        node: function,
+                        message: FlowMacroWarning.tabRoleIgnoredInNonTabCoordinatable
                     ))
                 }
                 
@@ -119,11 +128,53 @@ public struct FlowMacro: MemberMacro {
         
         let typeString = type.description.trimmingCharacters(in: .whitespacesAndNewlines)
         
+        // Simple types
         if typeString.hasPrefix("some View") || typeString == "some View" {
             return .someView
         } else if typeString.hasPrefix("any Coordinatable") || typeString == "any Coordinatable" {
             return .anyCoordinatable
-        } else if typeString.contains("(any Coordinatable, some View)") {
+        }
+        
+        // Check for TabRole variants first (more specific patterns)
+        // Order matters: check longer/more specific patterns before shorter ones
+        
+        // (any Coordinatable, some View, TabRole)
+        if typeString.contains("any Coordinatable") &&
+           typeString.contains("some View") &&
+           typeString.contains("TabRole") {
+            return .coordinatableViewTabRoleTuple
+        }
+        
+        // (some View, some View, TabRole)
+        if let match = typeString.range(of: #"\(some View,\s*some View,\s*TabRole\)"#, options: .regularExpression) {
+            return .viewViewTabRoleTuple
+        }
+        
+        // Also check without regex for simpler cases
+        if typeString.contains("(some View, some View, TabRole)") {
+            return .viewViewTabRoleTuple
+        }
+        
+        // (any Coordinatable, TabRole)
+        if typeString.contains("any Coordinatable") &&
+           typeString.contains("TabRole") &&
+           !typeString.contains("some View") {
+            return .coordinatableTabRoleTuple
+        }
+        
+        // (some View, TabRole) - but not (some View, some View, TabRole)
+        if typeString.contains("some View") &&
+           typeString.contains("TabRole") &&
+           !typeString.contains("any Coordinatable") {
+            // Count occurrences of "some View"
+            let viewCount = typeString.components(separatedBy: "some View").count - 1
+            if viewCount == 1 {
+                return .viewTabRoleTuple
+            }
+        }
+        
+        // Non-TabRole tuples
+        if typeString.contains("(any Coordinatable, some View)") {
             return .coordinatableViewTuple
         } else if typeString.contains("(some View, some View)") {
             return .viewViewTuple
@@ -134,7 +185,10 @@ public struct FlowMacro: MemberMacro {
     
     private static func shouldAutoTrackFunction(returnType: ReturnTypeInfo) -> Bool {
         switch returnType {
-        case .someView, .anyCoordinatable, .coordinatableViewTuple, .viewViewTuple:
+        case .someView, .anyCoordinatable,
+             .coordinatableViewTuple, .viewViewTuple,
+             .viewTabRoleTuple, .coordinatableTabRoleTuple,
+             .viewViewTabRoleTuple, .coordinatableViewTabRoleTuple:
             return true
         case .void, .other:
             return false
@@ -415,7 +469,17 @@ public struct FlowMacro: MemberMacro {
             return ".init(\(functionCall), meta: meta, parent: instance)"
         case .anyCoordinatable:
             return ".init({ [unowned instance] in \(functionCall) }, meta: meta, parent: instance)"
-        case .coordinatableViewTuple, .viewViewTuple:
+        case .coordinatableViewTuple:
+            return ".init({ [unowned instance] in \(functionCall) }, meta: meta, parent: instance)"
+        case .viewViewTuple:
+            return ".init({ [unowned instance] in \(functionCall) }, meta: meta, parent: instance)"
+        case .viewTabRoleTuple:
+            return ".init({ [unowned instance] in \(functionCall) }, meta: meta, parent: instance)"
+        case .coordinatableTabRoleTuple:
+            return ".init({ [unowned instance] in \(functionCall) }, meta: meta, parent: instance)"
+        case .viewViewTabRoleTuple:
+            return ".init({ [unowned instance] in \(functionCall) }, meta: meta, parent: instance)"
+        case .coordinatableViewTabRoleTuple:
             return ".init({ [unowned instance] in \(functionCall) }, meta: meta, parent: instance)"
         case .void, .other:
             return ".init({ [unowned instance] in \(functionCall) }, meta: meta, parent: instance)"
@@ -433,9 +497,34 @@ enum ReturnTypeInfo {
     case void
     case someView
     case anyCoordinatable
-    case coordinatableViewTuple
-    case viewViewTuple
+    case coordinatableViewTuple      // (any Coordinatable, some View)
+    case viewViewTuple               // (some View, some View)
+    case viewTabRoleTuple            // (some View, TabRole)
+    case coordinatableTabRoleTuple   // (any Coordinatable, TabRole)
+    case viewViewTabRoleTuple        // (some View, some View, TabRole)
+    case coordinatableViewTabRoleTuple // (any Coordinatable, some View, TabRole)
     case other
+    
+    var isTupleType: Bool {
+        switch self {
+        case .coordinatableViewTuple, .viewViewTuple,
+             .viewTabRoleTuple, .coordinatableTabRoleTuple,
+             .viewViewTabRoleTuple, .coordinatableViewTabRoleTuple:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    var hasTabRole: Bool {
+        switch self {
+        case .viewTabRoleTuple, .coordinatableTabRoleTuple,
+             .viewViewTabRoleTuple, .coordinatableViewTabRoleTuple:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 struct TrackedFunction {
@@ -516,6 +605,11 @@ enum FlowMacroError: Error, CustomStringConvertible {
 struct FlowMacroWarning: DiagnosticMessage {
     static let tupleIgnoredInNonTabCoordinatable = FlowMacroWarning(
         message: "Second view in tuple return type will be ignored in non-TabCoordinatable classes",
+        severity: .warning
+    )
+    
+    static let tabRoleIgnoredInNonTabCoordinatable = FlowMacroWarning(
+        message: "TabRole will be ignored in non-TabCoordinatable classes",
         severity: .warning
     )
     

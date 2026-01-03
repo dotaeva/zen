@@ -276,20 +276,18 @@ public struct TabCoordinatableView: CoordinatableView {
     
     private func flowCoordinatableView() -> some View {
         TabView(selection: _coordinator.selectedTabBinding) {
-            Group {
-                ForEach(_coordinator.anyTabItems.tabs) { tab in
+            ForEach(_coordinator.anyTabItems.tabs) { tab in
+                Tab(value: tab.id, role: tab.tabRole) {
                     wrappedView(tab)
-                        .environmentCoordinatable(coordinator)
-                        .tabItem {
-                            if let tabItem = tab.tabItem {
-                                AnyView(tabItem)
-                            }
-                        }
-                        .tag(tab.id)
+                        .environmentCoordinatable(_coordinator)
+                        .toolbar(_coordinator.anyTabItems.tabBarVisibility, for: .tabBar)
+                } label: {
+                    if let tabItem = tab.tabItem {
+                        AnyView(tabItem)
+                    }
                 }
+                
             }
-            .environmentCoordinatable(_coordinator)
-            .toolbar(_coordinator.anyTabItems.tabBarVisibility, for: .tabBar)
         }
     }
     
