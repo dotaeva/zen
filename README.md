@@ -1,6 +1,6 @@
 # Zen
 
-A powerful SwiftUI navigation framework that implements the MVVM-C (Model-View-ViewModel-Coordinator) pattern with dot-syntax usage and minimal boilerplate.
+A powerful SwiftUI navigation framework that implements the Coordinator (also known as FlowController) pattern with dot-syntax usage and minimal boilerplate. Allows easy navigation scaffolding that does not clutter the UI part of the project.
 
 An example project using [Tuist](https://github.com/tuist/tuist) and [The Modular Architecture](https://docs.tuist.dev/en/guides/features/projects/tma-architecture) is available [here](https://github.com/dotaeva/zen-example-tma).
 
@@ -14,7 +14,7 @@ Zen provides a declarative, type-safe approach to navigation in SwiftUI applicat
 - **Three coordinator types** - Flow, Tab, and Root coordinators for different navigation patterns
 - **Multiple presentation styles** - Push, sheet, and full-screen cover navigation
 - **Nested routing** - Navigate through multiple coordinator layers in a single call
-- **SwiftUI integration** - Seamlessly works with NavigationStack, TabView, and modal presentations
+- **SwiftUI integration** - Seamlessly works with TabView, and modal presentations. NavigationStack itself is not supported in the flow, as it already implements one.
 - **Observable support** - Built for Swift's modern observation framework
 
 ## Getting Started
