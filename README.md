@@ -2,6 +2,8 @@
 
 A powerful SwiftUI navigation framework that implements the MVVM-C (Model-View-ViewModel-Coordinator) pattern with dot-syntax usage and minimal boilerplate.
 
+An example project using [Tuist](https://github.com/tuist/tuist) and [The Modular Architecture](https://docs.tuist.dev/en/guides/features/projects/tma-architecture) is available [here](https://github.com/dotaeva/zen-example-tma).
+
 ## Overview
 
 Zen provides a declarative, type-safe approach to navigation in SwiftUI applications. By leveraging Swift macros and a flexible protocol system, Zen eliminates common navigation pitfalls while maintaining clean separation of concerns between your views and navigation logic.
@@ -90,18 +92,18 @@ Manages tab-based navigation with support for nested coordinators in each tab.
 ```swift
 @Flow @Observable
 final class AppCoordinator: TabCoordinatable {
-    var tabItems = TabItems<AppCoordinator>(tabs: [.home, .search, .profile])
+    var tabItems = TabItems<AppCoordinator>(tabs: [.home, .profile, .search])
     
     func home() -> (any Coordinatable, some View) {
         (HomeCoordinator(), Label("Home", systemImage: "house"))
     }
-    
-    func search() -> (any Coordinatable, some View) {
-        (SearchCoordinator(), Label("Search", systemImage: "magnifyingglass"))
-    }
-    
+
     func profile() -> (any Coordinatable, some View) {
         (ProfileCoordinator(), Label("Profile", systemImage: "person"))
+    }
+
+    func search() -> (any Coordinatable, some View, TabRole) {
+        (SearchCoordinator(), Label("Search", systemImage: "magnifyingglass"), .search)
     }
 }
 ```
@@ -218,7 +220,7 @@ final class ExampleCoordinator: FlowCoordinatable {
 
 ## Requirements
 
-- iOS 17.0+ / macOS 14.0+
+- iOS 18.0+ / macOS 14.0+
 - Swift 5.9+
 - Xcode 15.0+
 

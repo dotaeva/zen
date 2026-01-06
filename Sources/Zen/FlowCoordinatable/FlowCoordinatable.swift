@@ -255,17 +255,35 @@ private extension FlowCoordinatable {
             return newDestinations
         }
         
-        if let rootDest = self.anyStack.root {
-            traverseCoordinatable(rootDest.coordinatable) { rootFlow in
-                if rootFlow.hasLayerNavigationCoordinatable {
-                    if !flattenedDestinations.isEmpty {
-                        let reconstructedRoot = reconstructRecursively(for: rootFlow)
-                        rootFlow.anyStack.destinations = reconstructedRoot
+        func traverseAndReconstructRoots(_ coordinatable: (any Coordinatable)?) {
+            guard let coordinatable = coordinatable else { return }
+            
+            if let flowCoordinator = coordinatable as? any FlowCoordinatable {
+                if flowCoordinator.hasLayerNavigationCoordinatable {
+                    if let rootDest = flowCoordinator.anyStack.root {
+                        traverseAndReconstructRoots(rootDest.coordinatable)
+                    }
+                    
+                    if flatIndex < flattenedDestinations.count || !flowCoordinator.anyStack.destinations.isEmpty {
+                        let reconstructed = reconstructRecursively(for: flowCoordinator)
+                        flowCoordinator.anyStack.destinations = reconstructed
                     } else {
-                        rootFlow.anyStack.destinations = []
+                        flowCoordinator.anyStack.destinations = []
                     }
                 }
+            } else if let tabCoordinator = coordinatable as? any TabCoordinatable {
+                if let selectedTabId = tabCoordinator.anyTabItems.selectedTab,
+                   let selectedTab = tabCoordinator.anyTabItems.tabs.first(where: { $0.id == selectedTabId }) {
+                    traverseAndReconstructRoots(selectedTab.coordinatable)
+                }
+            } else if let rootCoordinator = coordinatable as? any RootCoordinatable,
+                      let rootDestination = rootCoordinator.anyRoot.root {
+                traverseAndReconstructRoots(rootDestination.coordinatable)
             }
+        }
+        
+        if let rootDest = self.anyStack.root {
+            traverseAndReconstructRoots(rootDest.coordinatable)
         }
         
         let reconstructed = reconstructRecursively(for: self)
