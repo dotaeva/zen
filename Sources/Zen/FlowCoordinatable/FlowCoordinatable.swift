@@ -120,7 +120,7 @@ extension FlowCoordinatable {
 // MARK: - Flatten & Reconstruct
 @MainActor
 private extension FlowCoordinatable {
-    func flattenDestinations(for destinationType: DestinationType) -> [Destination] {
+    private func flattenDestinations(for destinationType: DestinationType) -> [Destination] {
         var flattened: [Destination] = []
         
         func flattenRecursively(_ destinations: [Destination]) {
@@ -141,20 +141,37 @@ private extension FlowCoordinatable {
             }
         }
         
-        // Handle root
-        if let rootDest = self.anyStack.root {
-            traverseCoordinatable(rootDest.coordinatable) { rootFlow in
-                if rootFlow.hasLayerNavigationCoordinatable {
-                    flattenRecursively(rootFlow.anyStack.destinations)
+        func traverseRoots(_ coordinatable: (any Coordinatable)?) {
+            guard let coordinatable = coordinatable else { return }
+            
+            if let flowCoordinator = coordinatable as? any FlowCoordinatable {
+                if flowCoordinator.hasLayerNavigationCoordinatable {
+                    flattenRecursively(flowCoordinator.anyStack.destinations)
+                    
+                    if let rootDest = flowCoordinator.anyStack.root {
+                        traverseRoots(rootDest.coordinatable)
+                    }
                 }
+            } else if let tabCoordinator = coordinatable as? any TabCoordinatable {
+                if let selectedTabId = tabCoordinator.anyTabItems.selectedTab,
+                   let selectedTab = tabCoordinator.anyTabItems.tabs.first(where: { $0.id == selectedTabId }) {
+                    traverseRoots(selectedTab.coordinatable)
+                }
+            } else if let rootCoordinator = coordinatable as? any RootCoordinatable,
+                      let rootDestination = rootCoordinator.anyRoot.root {
+                traverseRoots(rootDestination.coordinatable)
             }
+        }
+        
+        if let rootDest = self.anyStack.root {
+            traverseRoots(rootDest.coordinatable)
         }
         
         flattenRecursively(self.anyStack.destinations)
         
         return flattened
     }
-
+    
     private func reconstructDestinations(from flattenedDestinations: [Destination], for destinationType: DestinationType) {
         var flatIndex = 0
         
@@ -171,12 +188,10 @@ private extension FlowCoordinatable {
                     if flatIndex < flattenedDestinations.count {
                         let flatDest = flattenedDestinations[flatIndex]
                         
-                        // Check if this destination matches the current flattened one
                         if flatDest.id == originalDestination.id {
                             newDestinations.append(flatDest)
                             flatIndex += 1
                             
-                            // Process nested coordinator if this is a push destination
                             if originalDestination.pushType == .push {
                                 traverseCoordinatable(originalDestination.coordinatable) { nestedFlow in
                                     let reconstructedNested = reconstructRecursively(for: nestedFlow)
@@ -184,19 +199,12 @@ private extension FlowCoordinatable {
                                 }
                             }
                         }
-                        // Don't add this destination - it was popped
                     }
-                    // Don't add - this destination was popped
                 } else if originalDestination.pushType == .push {
-                    // For non-matching push types, we need to check if this should still exist
-                    // by seeing if any of the remaining flattened destinations are within this coordinator
-                    
                     var hasNestedDestinations = false
                     let savedFlatIndex = flatIndex
                     
-                    // Check if any remaining flattened destinations belong to this nested coordinator
                     traverseCoordinatable(originalDestination.coordinatable) { nestedFlow in
-                        // Collect all destination IDs that belong to this nested flow
                         var nestedDestinationIds = Set<UUID>()
                         
                         @MainActor func collectNestedIds(from flow: any FlowCoordinatable) {
@@ -215,7 +223,6 @@ private extension FlowCoordinatable {
                         
                         collectNestedIds(from: nestedFlow)
                         
-                        // Count how many of the remaining flattened destinations belong to this nested flow
                         var tempIndex = savedFlatIndex
                         var nestedCount = 0
                         
@@ -224,7 +231,6 @@ private extension FlowCoordinatable {
                                 nestedCount += 1
                                 tempIndex += 1
                             } else {
-                                // This destination doesn't belong to this nested coordinator
                                 break
                             }
                         }
@@ -234,7 +240,6 @@ private extension FlowCoordinatable {
                             let reconstructedNested = reconstructRecursively(for: nestedFlow)
                             nestedFlow.anyStack.destinations = reconstructedNested
                         } else {
-                            // Clear the nested destinations
                             nestedFlow.anyStack.destinations = []
                         }
                     }
