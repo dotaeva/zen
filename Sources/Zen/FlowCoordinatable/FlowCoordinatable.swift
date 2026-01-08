@@ -51,7 +51,6 @@ public extension FlowCoordinatable {
     }
 }
 
-// MARK: - Navigation Stack Binding
 @MainActor
 extension FlowCoordinatable {
     func bindingStack(for destinationType: DestinationType) -> Binding<[Destination]> {
@@ -67,7 +66,6 @@ extension FlowCoordinatable {
     }
 }
 
-// MARK: - Modal Handling
 @MainActor
 extension FlowCoordinatable {
     func modalDestinations(for destinationType: DestinationType) -> [Destination] {
@@ -77,14 +75,12 @@ extension FlowCoordinatable {
         
         var flattened: [Destination] = []
         
-        // Check root destination first
         if let rootDest = self.anyStack.root {
             traverseCoordinatable(rootDest.coordinatable) { nestedFlow in
                 flattened.append(contentsOf: nestedFlow.modalDestinations(for: destinationType))
             }
         }
         
-        // Then check self destinations
         for destination in self.anyStack.destinations {
             if destination.pushType == destinationType {
                 flattened.append(destination)
@@ -99,14 +95,12 @@ extension FlowCoordinatable {
     }
     
     func removeModalDestination(withId id: UUID, type: DestinationType) {
-        // Check root destination first
         if let rootDest = self.anyStack.root {
             traverseCoordinatable(rootDest.coordinatable) { nestedFlow in
                 nestedFlow.removeModalDestination(withId: id, type: type)
             }
         }
         
-        // Then check self destinations
         anyStack.destinations.removeAll { $0.id == id && $0.pushType == type }
         
         for destination in anyStack.destinations {
@@ -117,7 +111,6 @@ extension FlowCoordinatable {
     }
 }
 
-// MARK: - Flatten & Reconstruct
 @MainActor
 private extension FlowCoordinatable {
     private func flattenDestinations(for destinationType: DestinationType) -> [Destination] {
@@ -142,15 +135,17 @@ private extension FlowCoordinatable {
         }
         
         func traverseRoots(_ coordinatable: (any Coordinatable)?) {
-            guard let coordinatable = coordinatable else { return }
+            guard let coordinatable = coordinatable else {
+                return
+            }
             
             if let flowCoordinator = coordinatable as? any FlowCoordinatable {
                 if flowCoordinator.hasLayerNavigationCoordinatable {
-                    flattenRecursively(flowCoordinator.anyStack.destinations)
-                    
                     if let rootDest = flowCoordinator.anyStack.root {
                         traverseRoots(rootDest.coordinatable)
                     }
+                    
+                    flattenRecursively(flowCoordinator.anyStack.destinations)
                 }
             } else if let tabCoordinator = coordinatable as? any TabCoordinatable {
                 if let selectedTabId = tabCoordinator.anyTabItems.selectedTab,
@@ -256,7 +251,9 @@ private extension FlowCoordinatable {
         }
         
         func traverseAndReconstructRoots(_ coordinatable: (any Coordinatable)?) {
-            guard let coordinatable = coordinatable else { return }
+            guard let coordinatable = coordinatable else {
+                return
+            }
             
             if let flowCoordinator = coordinatable as? any FlowCoordinatable {
                 if flowCoordinator.hasLayerNavigationCoordinatable {
