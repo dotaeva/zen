@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import os.log
 
 @MainActor
 public protocol Coordinatable: Identifiable {
@@ -28,8 +29,28 @@ public extension Coordinatable {
     }
     
     func dismissCoordinator() {
+        let logger = Logger(subsystem: "Zen", category: "Dismissal")
+        
+        if let parent = parent as? (any TabCoordinatable) {
+            logger.critical("Zen: The coordinator you're trying to dismiss is a TabView child, it will not be dismissed.")
+            return
+        }
+        
+        if let parent = parent as? (any RootCoordinatable) {
+            parent.parent?.dismissCoordinator()
+            return
+        }
+        
         if let parent = parent as? (any FlowCoordinatable) {
             let selfId = AnyHashable(self.id)
+            
+            if let root = parent.anyStack.root,
+               let rootCoordinatable = root.coordinatable?.id,
+               AnyHashable(rootCoordinatable) == selfId {
+                parent.dismissCoordinator()
+                return
+            }
+            
             parent.anyStack.destinations.removeAll(where: {
                 guard let coordinatableId = $0.coordinatable?.id else { return false }
                 return AnyHashable(coordinatableId) == selfId
