@@ -3,7 +3,7 @@
 A powerful SwiftUI navigation framework that implements the Coordinator (also known as FlowController) pattern with dot-syntax usage and minimal boilerplate. Allows easy navigation scaffolding that does not clutter the UI part of the project.
 
 An example project using [Tuist](https://github.com/tuist/tuist) and [The Modular Architecture](https://docs.tuist.dev/en/guides/features/projects/tma-architecture) is available [here](https://github.com/dotaeva/zen-example-tma).
-> **Note**: The example project is using legacy version of the project `Zen`. Updated example project will soon be available. The project has been renamed to more represent its offerings and due to changes in minimal iOS versions - where Zen has supported either iOS 17+ or 18+, Scaffolding implements all updates, allowing to use one single version for the project as it grows.
+> **Note**: The project has been renamed to more represent its usage and to clear up consistency changes in minimal iOS versions - where Zen has supported either iOS 17+ or 18+, Scaffolding implements all updates, allowing to use one single version for the project as it grows.
 
 ## Overview
 
