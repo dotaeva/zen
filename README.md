@@ -1,12 +1,19 @@
-# Zen
+# Scaffolding 目
 
 A powerful SwiftUI navigation framework that implements the Coordinator (also known as FlowController) pattern with dot-syntax usage and minimal boilerplate. Allows easy navigation scaffolding that does not clutter the UI part of the project.
 
 An example project using [Tuist](https://github.com/tuist/tuist) and [The Modular Architecture](https://docs.tuist.dev/en/guides/features/projects/tma-architecture) is available [here](https://github.com/dotaeva/zen-example-tma).
+> **Note**: The example project is using legacy version of the project `Zen`. Updated example project will soon be available. The project has been renamed to more represent its offerings and due to changes in minimal iOS versions - where Zen has supported either iOS 17+ or 18+, Scaffolding implements all updates, allowing to use one single version for the project as it grows.
 
 ## Overview
 
-Zen provides a declarative, type-safe approach to navigation in SwiftUI applications. By leveraging Swift macros and a flexible protocol system, Zen eliminates common navigation pitfalls while maintaining clean separation of concerns between your views and navigation logic.
+Scaffolding provides a declarative, type-safe approach to navigation in SwiftUI applications. By leveraging Swift macros and a flexible protocol system, Scaffolding eliminates common navigation pitfalls while maintaining clean separation of concerns between your views and navigation logic.
+
+## Why should I use it?
+
+Highly depends on how large your application is or is planning to be. If you're doing just fine with navigation living in UI layer with just `NavigationLink`, I suppose you won't find anything of interest here. If you are starting to use `NavigationStack(path:)`, you might find a benefit of predefined functions and clearer code.
+
+If the app is large with multiple flows, you might want to try modular architecture, where this library really shines, as it allows you to slice up your navigation into modules.
 
 ### Key Features
 
@@ -14,35 +21,43 @@ Zen provides a declarative, type-safe approach to navigation in SwiftUI applicat
 - **Three coordinator types** - Flow, Tab, and Root coordinators for different navigation patterns
 - **Multiple presentation styles** - Push, sheet, and full-screen cover navigation
 - **Nested routing** - Navigate through multiple coordinator layers in a single call
-- **SwiftUI integration** - Seamlessly works with TabView, and modal presentations. NavigationStack itself is not supported in the flow, as it already implements one.
+- **SwiftUI integration** - Uses SwiftUI's native components on the inside
 - **Observable support** - Built for Swift's modern observation framework
 
 ## Getting Started
 
 ### Basic Setup
 
-Define a coordinator using the `@Flow` macro and conform to one of the coordinator protocols:
+Define a coordinator using the `@Scaffoldable` macro and conform to one of the coordinator protocols. 
+Then, define your routes as functions with return types `some View` for classic `View`, or `any Coordinatable` in case of embedding another `Coordinatable`. 
+After defining the routes, the `@Scaffoldable` macro automatically generates a `Destinations` enum based on your specified methods. This allows you to initialize the coordinator's data property.
 
 ```swift
-@Flow @Observable
-final class HomeCoordinator: FlowCoordinatable {
+@Scaffoldable @Observable
+final class HomeCoordinator: @MainActor FlowCoordinatable {
     var stack = FlowStack<HomeCoordinator>(root: .home)
     
-    func home() -> some View {
-        HomeView()
-    }
-    
-    func detail(item: Item) -> some View {
-        DetailView(item: item)
-    }
-    
-    func settings() -> any Coordinatable {
-        SettingsCoordinator()
+    func home() -> some View { HomeView() }
+    func detail(item: Item) -> some View { DetailView(item: item) }
+    func settings() -> any Coordinatable { SettingsCoordinator() }
+}
+```
+
+If the Coordinator you specified is the first one of the navigation tree, put it at the start of the app.
+
+```swift
+@main
+struct MyApp: App {
+    var body: some Scene {
+        WindowGroup {
+            HomeCoordinator()
+                .view()
+        }
     }
 }
 ```
 
-The `@Flow` macro automatically generates a `Destinations` enum based on your methods that return views or coordinators.
+> **Note:** Assigning `public` modifier to the Coordinatable class exposes its routes, allowing it to be used across modules.
 
 ### Navigation
 
@@ -66,10 +81,11 @@ coordinator.route(to: .profile) { (profileCoordinator: ProfileCoordinator) in
 ### FlowCoordinatable
 
 Manages a navigation stack with push/pop operations and modal presentations.
+Allowed returns types are either `some View`, or `any Coordinatable`
 
 ```swift
-@Flow @Observable
-final class MainCoordinator: FlowCoordinatable {
+@Scaffoldable @Observable
+final class MainCoordinator: @MainActor FlowCoordinatable {
     var stack = FlowStack<MainCoordinator>(root: .home)
     
     // Navigation methods
@@ -88,10 +104,11 @@ final class MainCoordinator: FlowCoordinatable {
 ### TabCoordinatable
 
 Manages tab-based navigation with support for nested coordinators in each tab.
+Allowed returns types are combinations or `any Coordinatable` and `some View` for first position, optional `some View` for the second position (used for Tab's label) and from iOS 18+ you can also append `TabRole`.
 
 ```swift
-@Flow @Observable
-final class AppCoordinator: TabCoordinatable {
+@Scaffoldable @Observable
+final class AppCoordinator: @MainActor TabCoordinatable {
     var tabItems = TabItems<AppCoordinator>(tabs: [.home, .profile, .search])
     
     func home() -> (any Coordinatable, some View) {
@@ -109,26 +126,21 @@ final class AppCoordinator: TabCoordinatable {
 ```
 
 **Key Methods:**
-- `selectFirstTab(_:)` / `selectLastTab(_:)` - Select tab by destination
+- `selectFirstTab(_:)` / `selectLastTab(_:) , ...` - Select tab by destination
 - `appendTab(_:)` - Add new tab
 - `removeFirstTab(_:)` / `removeLastTab(_:)` - Remove tabs
-
 ### RootCoordinatable
 
 Manages a single root view, perfect for authentication flows or app state changes.
+Allowed returns types are either `some View`, or `any Coordinatable`.
 
 ```swift
-@Flow @Observable
-final class AuthCoordinator: RootCoordinatable {
+@Scaffoldable @Observable
+final class AuthCoordinator: @MainActor RootCoordinatable {
     var root = Root<AuthCoordinator>(root: .login)
     
-    func login() -> some View {
-        LoginView()
-    }
-    
-    func authenticated() -> any Coordinatable {
-        MainAppCoordinator()
-    }
+    func login() -> some View { LoginView() }
+    func authenticated() -> any Coordinatable { MainAppCoordinator() }
 }
 ```
 
@@ -146,14 +158,14 @@ coordinator.route(to: .settings) { (settings: SettingsCoordinator) in
 }
 ```
 
-> **Note**: While Zen provides a convenient API for nested routing, type safety depends on correct type annotations in the closure parameters.
+> **Note**: While Scaffolding provides a convenient API for nested routing, type safety depends on correct type annotations in the closure parameters.
 
 ### Custom View Wrapping
 
 Customize how coordinator views are presented:
 
 ```swift
-@FlowIgnored
+@ScaffoldingIgnored
 func customize(_ view: AnyView) -> some View {
     view
         .navigationBarTitleDisplayMode(.inline)
@@ -165,7 +177,8 @@ func customize(_ view: AnyView) -> some View {
 
 ### Environment Integration
 
-Access coordinators from SwiftUI views using the environment:
+The coordinators are injected to each of their children. If there are multiple Coordinators of the same type in the tree of the View, the closest one to being the View's parent is used.
+You can access coordinators from SwiftUI views using the environment:
 
 ```swift
 struct DetailView: View {
@@ -181,15 +194,11 @@ struct DetailView: View {
 
 ## Macro Attributes
 
-### @Flow
+### @Scaffoldable
 
 Generates the `Destinations` enum for your coordinator. Applied to coordinator classes.
 
-### @FlowTracked
-
-Explicitly includes a method in destination generation.
-
-### @FlowIgnored
+### @ScaffoldingIgnored
 
 Excludes a method from destination generation.
 
@@ -199,28 +208,23 @@ final class ExampleCoordinator: FlowCoordinatable {
     var stack = FlowStack<ExampleCoordinator>(root: .home)
     
     // Automatically tracked (returns View)
-    func home() -> some View { HomeView() }
-    
-    // Explicitly tracked
-    @FlowTracked
-    func coordinatableDestination() -> any Coordinatable { ... }
+    func home() -> some View { makeHome() }
     
     // Ignored by destination generation
-    @FlowIgnored
-    func generateViewMethod() -> some View { ... }
+    @ScaffoldingIgnored
+    func makeHome() -> some View { ... }
 }
 ```
 
 ## Best Practices
 
-1. **One coordinator per flow** - Each navigation flow should have its own coordinator
-2. **Coordinator ownership** - Let coordinators own their navigation state
-3. **View simplicity** - Keep views focused on presentation, not navigation logic
-4. **Consistent patterns** - Use the same navigation patterns throughout your app
+1. **Coordinator ownership** - Let coordinators own their navigation state
+2. **View simplicity** - Keep views focused on presentation, not navigation logic
+3. **Consistent patterns** - Use the same navigation patterns throughout your app.
 
 ## Requirements
 
-- iOS 18.0+ / macOS 14.0+
+- iOS 17.0+ / macOS 14.0+
 - Swift 5.9+
 - Xcode 15.0+
 
@@ -240,7 +244,7 @@ struct MyApp: App {
 }
 
 // Main app coordinator
-@Flow @Observable
+@Scaffoldable @Observable
 final class AppCoordinator: RootCoordinatable {
     var root = Root<AppCoordinator>(root: .unauthenticated)
     
@@ -254,6 +258,3 @@ final class AppCoordinator: RootCoordinatable {
 }
 ```
 
----
-
-Zen transforms SwiftUI navigation from a source of complexity into a structured, maintainable system. By separating navigation logic from view code and providing compile-time safety through macros, Zen enables you to build robust navigation flows with confidence.

@@ -1,6 +1,6 @@
 //
 //  Plugin.swift
-//  Zen
+//  Scaffolding
 //
 //  Created by Alexandr Valíček on 26.09.2025.
 //
@@ -9,10 +9,9 @@ import SwiftCompilerPlugin
 import SwiftSyntaxMacros
 
 @main
-struct ZenPlugin: CompilerPlugin {
+struct ScaffoldingPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
-        FlowMacro.self,
-        FlowTrackedMacro.self,
-        FlowIgnoredMacro.self,
+        ScaffoldableMacro.self,
+        ScaffoldingIgnoredMacro.self,
     ]
 }

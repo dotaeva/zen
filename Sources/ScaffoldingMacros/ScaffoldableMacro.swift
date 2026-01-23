@@ -1,6 +1,6 @@
 //
-//  FlowMacro.swift
-//  Zen
+//  ScaffoldableMacro.swift
+//  Scaffolding
 //
 //  Created by Alexandr Valíček on 26.09.2025.
 //
@@ -11,7 +11,7 @@ import SwiftSyntaxMacros
 import SwiftDiagnostics
 import Foundation
 
-public struct FlowMacro: MemberMacro {
+public struct ScaffoldableMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
@@ -19,7 +19,7 @@ public struct FlowMacro: MemberMacro {
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         guard let classDecl = declaration.as(ClassDeclSyntax.self) else {
-            throw FlowMacroError.onlyApplicableToClass
+            throw ScaffoldingMacroError.onlyApplicableToClass
         }
         
         let className = classDecl.name.text
@@ -42,8 +42,17 @@ public struct FlowMacro: MemberMacro {
     
     
     private static func determineCoordinatableType(from classDecl: ClassDeclSyntax) throws -> CoordinatableType {
-        let inheritanceTypes = classDecl.inheritanceClause?.inheritedTypes.compactMap { type in
-            type.type.as(IdentifierTypeSyntax.self)?.name.text
+        let inheritanceTypes = classDecl.inheritanceClause?.inheritedTypes.compactMap { type -> String? in
+            // Handle attributed types like "@MainActor FlowCoordinatable"
+            if let attributedType = type.type.as(AttributedTypeSyntax.self),
+               let baseType = attributedType.baseType.as(IdentifierTypeSyntax.self) {
+                return baseType.name.text
+            }
+            // Handle simple identifier types like "FlowCoordinatable"
+            if let identifierType = type.type.as(IdentifierTypeSyntax.self) {
+                return identifierType.name.text
+            }
+            return nil
         } ?? []
         
         if inheritanceTypes.contains("TabCoordinatable") {
@@ -53,7 +62,7 @@ public struct FlowMacro: MemberMacro {
         } else if inheritanceTypes.contains("FlowCoordinatable") {
             return .flow
         } else {
-            throw FlowMacroError.mustConformToCoordinatable
+            throw ScaffoldingMacroError.mustConformToCoordinatable
         }
     }
     
@@ -73,22 +82,21 @@ public struct FlowMacro: MemberMacro {
         var trackedFunctions: [TrackedFunction] = []
         
         for function in functions {
-            let hasFlowTracked = hasAttribute(function, named: "FlowTracked")
-            let hasFlowIgnored = hasAttribute(function, named: "FlowIgnored")
+            let hasScaffoldingIgnored = hasAttribute(function, named: "ScaffoldingIgnored")
             
-            if hasFlowIgnored {
+            if hasScaffoldingIgnored {
                 continue
             }
             
             let returnTypeInfo = try parseReturnType(function.signature.returnClause?.type)
             let shouldAutoTrack = shouldAutoTrackFunction(returnType: returnTypeInfo)
             
-            if hasFlowTracked || shouldAutoTrack {
+            if shouldAutoTrack {
                 // Warn about tuple types in non-TabCoordinatable
                 if coordinatableType != .tab && returnTypeInfo.isTupleType {
                     context.diagnose(Diagnostic(
                         node: function,
-                        message: FlowMacroWarning.tupleIgnoredInNonTabCoordinatable
+                        message: ScaffoldingMacroWarning.tupleIgnoredInNonTabCoordinatable
                     ))
                 }
                 
@@ -96,7 +104,7 @@ public struct FlowMacro: MemberMacro {
                 if coordinatableType != .tab && returnTypeInfo.hasTabRole {
                     context.diagnose(Diagnostic(
                         node: function,
-                        message: FlowMacroWarning.tabRoleIgnoredInNonTabCoordinatable
+                        message: ScaffoldingMacroWarning.tabRoleIgnoredInNonTabCoordinatable
                     ))
                 }
                 
@@ -229,12 +237,12 @@ public struct FlowMacro: MemberMacro {
         
         let accessModifier = isPublic ? "public " : ""
         
-        let destinationsEnum = try EnumDeclSyntax("\(raw: accessModifier)enum Destinations: Destinationable") {
+        let destinationsEnum = try EnumDeclSyntax("\(raw: accessModifier)enum Destinations: @MainActor Destinationable") {
             // typealias Owner = ClassName
             DeclSyntax("\(raw: accessModifier)typealias Owner = \(raw: className)")
             
             // Meta enum
-            try EnumDeclSyntax("\(raw: accessModifier)enum Meta: DestinationMeta") {
+            try EnumDeclSyntax("\(raw: accessModifier)enum Meta: @MainActor DestinationMeta") {
                 for caseElement in metaCases {
                     EnumCaseDeclSyntax {
                         caseElement
@@ -289,11 +297,17 @@ public struct FlowMacro: MemberMacro {
                         firstName: .identifier(label),
                         colon: .colonToken(),
                         type: IdentifierTypeSyntax(name: .identifier(param.type)),
+                        defaultValue: param.defaultValue.map {
+                            InitializerClauseSyntax(value: ExprSyntax(stringLiteral: $0))
+                        },
                         trailingComma: isLast ? nil : .commaToken()
                     )
                 } else {
                     return EnumCaseParameterSyntax(
                         type: IdentifierTypeSyntax(name: .identifier(param.type)),
+                        defaultValue: param.defaultValue.map {
+                            InitializerClauseSyntax(value: ExprSyntax(stringLiteral: $0))
+                        },
                         trailingComma: isLast ? nil : .commaToken()
                     )
                 }
@@ -547,6 +561,7 @@ struct Parameter {
     let label: String?
     let name: String
     let type: String
+    let defaultValue: String?
     
     init(from param: FunctionParameterSyntax) throws {
         // Handle parameter labels
@@ -566,6 +581,13 @@ struct Parameter {
         // Extract type and strip @escaping and other function-only attributes
         let typeString = param.type.description.trimmingCharacters(in: .whitespacesAndNewlines)
         self.type = Self.stripFunctionAttributes(from: typeString)
+        
+        // Extract default value if present
+        if let defaultClause = param.defaultValue {
+            self.defaultValue = defaultClause.value.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            self.defaultValue = nil
+        }
     }
     
     private static func stripFunctionAttributes(from typeString: String) -> String {
@@ -582,7 +604,7 @@ struct Parameter {
 
 // MARK: - Errors and Warnings
 
-enum FlowMacroError: Error, CustomStringConvertible {
+enum ScaffoldingMacroError: Error, CustomStringConvertible {
     case onlyApplicableToClass
     case mustConformToCoordinatable
     case invalidParameter
@@ -591,9 +613,9 @@ enum FlowMacroError: Error, CustomStringConvertible {
     var description: String {
         switch self {
         case .onlyApplicableToClass:
-            return "@Flow can only be applied to classes"
+            return "@Scaffold can only be applied to classes"
         case .mustConformToCoordinatable:
-            return "@Flow can only be applied to classes that conform to FlowCoordinatable, TabCoordinatable, or RootCoordinatable"
+            return "@Scaffold can only be applied to classes that conform to FlowCoordinatable, TabCoordinatable, or RootCoordinatable"
         case .invalidParameter:
             return "Invalid function parameter"
         case .codeGenerationFailed:
@@ -602,13 +624,13 @@ enum FlowMacroError: Error, CustomStringConvertible {
     }
 }
 
-struct FlowMacroWarning: DiagnosticMessage {
-    static let tupleIgnoredInNonTabCoordinatable = FlowMacroWarning(
+struct ScaffoldingMacroWarning: DiagnosticMessage {
+    static let tupleIgnoredInNonTabCoordinatable = ScaffoldingMacroWarning(
         message: "Second view in tuple return type will be ignored in non-TabCoordinatable classes",
         severity: .warning
     )
     
-    static let tabRoleIgnoredInNonTabCoordinatable = FlowMacroWarning(
+    static let tabRoleIgnoredInNonTabCoordinatable = ScaffoldingMacroWarning(
         message: "TabRole will be ignored in non-TabCoordinatable classes",
         severity: .warning
     )
@@ -620,6 +642,6 @@ struct FlowMacroWarning: DiagnosticMessage {
     init(message: String, severity: DiagnosticSeverity) {
         self.message = message
         self.severity = severity
-        self.diagnosticID = MessageID(domain: "ZenMacros", id: message)
+        self.diagnosticID = MessageID(domain: "ScaffoldMacros", id: message)
     }
 }

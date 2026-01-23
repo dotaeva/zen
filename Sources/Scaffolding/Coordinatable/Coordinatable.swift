@@ -1,6 +1,6 @@
 //
 //  Coordinatable.swift
-//  Zen
+//  Scaffolding
 //
 //  Created by Alexandr Valíček on 22.09.2025.
 //
@@ -23,16 +23,17 @@ public protocol Coordinatable: Identifiable {
     func customize(_ view: AnyView) -> CustomizeContentView
 }
 
+@MainActor
 public extension Coordinatable {
     func customize(_ view: AnyView) -> some View {
         view
     }
     
     func dismissCoordinator() {
-        let logger = Logger(subsystem: "Zen", category: "Dismissal")
+        let logger = Logger(subsystem: "Scaffolding", category: "Dismissal")
         
         if let parent = parent as? (any TabCoordinatable) {
-            logger.critical("Zen: The coordinator you're trying to dismiss is a TabView child, it will not be dismissed.")
+            logger.critical("Scaffolding: The coordinator you're trying to dismiss is a TabView child, it will not be dismissed.")
             return
         }
         
@@ -63,12 +64,14 @@ public extension Coordinatable {
     }
 }
 
+@MainActor
 extension Coordinatable {
     func customizeErased(_ view: AnyView) -> AnyView {
         AnyView(customize(view))
     }
 }
 
+@MainActor
 public protocol Destinationable {
     associatedtype Meta: DestinationMeta
     associatedtype Owner

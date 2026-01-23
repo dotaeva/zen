@@ -1,12 +1,13 @@
 //
 //  View+Coordinatable.swift
-//  Zen
+//  Scaffolding
 //
 //  Created by Alexandr Valíček on 23.09.2025.
 //
 
 import SwiftUI
 
+@MainActor
 public extension View {
     func environmentCoordinatable(_ object: Any) -> AnyView {
         let mirror = Mirror(reflecting: object)

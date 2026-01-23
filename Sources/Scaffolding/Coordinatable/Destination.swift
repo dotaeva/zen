@@ -1,20 +1,23 @@
 //
 //  Destination.swift
-//  Zen
+//  Scaffolding
 //
 //  Created by Alexandr Valíček on 22.09.2025.
 //
 
 import SwiftUI
 
+@MainActor
 public protocol DestinationMeta: Equatable { }
 
+@MainActor
 public enum DestinationType {
     case push
     case sheet
     case fullScreenCover
 }
 
+@MainActor
 public struct Destination: Identifiable {
     class CoordinatableCache {
         private let coordinatableFactory: () -> any Coordinatable
@@ -38,6 +41,7 @@ public struct Destination: Identifiable {
             }
         }
         
+        @available(iOS 18, *)
         init<V: View>(_ factory: @escaping () -> (any Coordinatable, V, TabRole)) {
             self.coordinatableFactory = {
                 let (coordinatable, _, _) = factory()
@@ -76,7 +80,14 @@ public struct Destination: Identifiable {
     var _tabItem: AnyView?
     var _coordinatable: CoordinatableCache?
     
-    var tabRole: TabRole?
+    @available(iOS 18, *)
+    var tabRole: TabRole? {
+        get { _tabRole as? TabRole }
+        set { _tabRole = newValue }
+    }
+    
+    private var _tabRole: Any?
+    
     var pushType: DestinationType?
     public let meta: any DestinationMeta
     var parent: any Coordinatable
@@ -143,6 +154,7 @@ public struct Destination: Identifiable {
     // MARK: - TabRole Initializers
     
     /// Initializer for `(some View, TabRole)`
+    @available(iOS 18, *)
     public init<V: View>(
         _ factory: @escaping () -> (V, TabRole),
         meta: any DestinationMeta,
@@ -153,10 +165,11 @@ public struct Destination: Identifiable {
         self.view = AnyView(v)
         self.meta = meta
         self.parent = parent
-        self.tabRole = role
+        self._tabRole = role
     }
     
     /// Initializer for `(any Coordinatable, TabRole)`
+    @available(iOS 18, *)
     public init(
         _ factory: @escaping () -> (any Coordinatable, TabRole),
         meta: any DestinationMeta,
@@ -168,10 +181,11 @@ public struct Destination: Identifiable {
         self._coordinatable = CoordinatableCache({ result.0 })
         self.meta = meta
         self.parent = parent
-        self.tabRole = role
+        self._tabRole = role
     }
     
     /// Initializer for `(some View, some View, TabRole)` - view + tab item + role
+    @available(iOS 18, *)
     public init<V: View, T: View>(
         _ factory: @escaping () -> (V, T, TabRole),
         meta: any DestinationMeta,
@@ -183,22 +197,22 @@ public struct Destination: Identifiable {
         self.meta = meta
         self.parent = parent
         self._tabItem = AnyView(t)
-        self.tabRole = role
+        self._tabRole = role
     }
     
     /// Initializer for `(any Coordinatable, some View, TabRole)` - coordinatable + tab item + role
+    @available(iOS 18, *)
     public init<V: View>(
         _ factory: @escaping () -> (any Coordinatable, V, TabRole),
         meta: any DestinationMeta,
         parent: any Coordinatable
     ) {
         let result = factory()
-        let role = result.2
         
-        self._coordinatable = CoordinatableCache({ (result.0, result.1, result.2) })
+        self._coordinatable = CoordinatableCache(factory) // ✅ Pass factory directly
         self.meta = meta
         self.parent = parent
-        self.tabRole = role
+        self._tabRole = result.2
     }
     
     // MARK: - Mutating Methods
@@ -212,7 +226,8 @@ public struct Destination: Identifiable {
     }
 }
 
-extension Destination: Equatable, Hashable {
+@MainActor
+extension Destination: @MainActor Equatable, @MainActor Hashable {
     public static func ==(lhs: Destination, rhs: Destination) -> Bool {
         return lhs.id == rhs.id
     }

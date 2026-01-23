@@ -1,6 +1,6 @@
 //
 //  Root.swift
-//  Zen
+//  Scaffolding
 //
 //  Created by Alexandr Valíček on 26.09.2025.
 //
@@ -8,11 +8,13 @@
 import SwiftUI
 import Observation
 
+@MainActor
 public protocol AnyRoot: AnyObject, CoordinatableData where Coordinator: RootCoordinatable {
     var root: Destination? { get set }
     var animation: Animation? { get set }
 }
 
+@MainActor
 @Observable
 public class Root<Coordinator: RootCoordinatable>: AnyRoot {
     public var root: Destination?

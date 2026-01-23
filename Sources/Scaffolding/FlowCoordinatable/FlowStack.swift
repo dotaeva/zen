@@ -1,6 +1,6 @@
 //
 //  FlowStack.swift
-//  Zen
+//  Scaffolding
 //
 //  Created by Alexandr Valíček on 26.09.2025.
 //
@@ -8,12 +8,14 @@
 import SwiftUI
 import Observation
 
+@MainActor
 public protocol AnyFlowStack: AnyObject, CoordinatableData where Coordinator: FlowCoordinatable {
     var root: Destination? { get set }
     var destinations: [Destination] { get set }
     var animation: Animation? { get set }
 }
 
+@MainActor
 @Observable
 public class FlowStack<Coordinator: FlowCoordinatable>: AnyFlowStack {
     public var root: Destination?
@@ -54,6 +56,7 @@ public class FlowStack<Coordinator: FlowCoordinatable>: AnyFlowStack {
     }
 }
 
+@MainActor
 extension FlowStack {
     func push(destination: Destination) {
         destinations.append(destination)

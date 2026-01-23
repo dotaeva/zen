@@ -1,6 +1,6 @@
 //
 //  FlowCoordinatable.swift
-//  Zen
+//  Scaffolding
 //
 //  Created by Alexandr Valíček on 22.09.2025.
 //
@@ -9,6 +9,7 @@ import SwiftUI
 import Observation
 import os.log
 
+@MainActor
 public protocol FlowCoordinatable: Coordinatable where ViewType == FlowCoordinatableView {
     var stack: FlowStack<Self> { get }
     var anyStack: any AnyFlowStack { get }
@@ -321,8 +322,8 @@ private extension FlowCoordinatable {
         let existingModals = findLayerFlowParent(lookup: self).modalDestinations(for: pushType)
         
         if existingModals.count > 1 {
-            let logger = Logger(subsystem: "Zen", category: "Modal")
-            logger.critical("Zen: Currently, only presenting a single sheet is supported.\nThe next sheet will be presented when the currently presented sheet gets dismissed.")
+            let logger = Logger(subsystem: "Scaffolding", category: "Modal")
+            logger.critical("Scaffolding: Currently, only presenting a single sheet is supported.\nThe next sheet will be presented when the currently presented sheet gets dismissed.")
         }
     }
 }
@@ -507,3 +508,4 @@ public struct FlowCoordinatableView: CoordinatableView {
         .id(_coordinator.anyStack.id)
     }
 }
+

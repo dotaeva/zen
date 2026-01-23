@@ -1,6 +1,6 @@
 //
 //  RootCoordinatable.swift
-//  Zen
+//  Scaffolding
 //
 //  Created by Alexandr Valíček on 26.09.2025.
 //
@@ -8,6 +8,7 @@
 import SwiftUI
 import Observation
 
+@MainActor
 public protocol RootCoordinatable: Coordinatable where ViewType == RootCoordinatableView {
     var root: Root<Self> { get }
     var anyRoot: any AnyRoot { get }

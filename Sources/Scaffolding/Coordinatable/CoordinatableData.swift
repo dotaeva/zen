@@ -1,6 +1,6 @@
 //
 //  CoordinatableData.swift
-//  Zen
+//  Scaffolding
 //
 //  Created by Alexandr Valíček on 26.09.2025.
 //

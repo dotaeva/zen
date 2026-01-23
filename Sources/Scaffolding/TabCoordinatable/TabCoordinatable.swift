@@ -1,6 +1,6 @@
 //
 //  TabCoordinatable.swift
-//  Zen
+//  Scaffolding
 //
 //  Created by Alexandr Valíček on 24.09.2025.
 //
@@ -8,6 +8,7 @@
 import SwiftUI
 import Observation
 
+@MainActor
 public protocol TabCoordinatable: Coordinatable where ViewType == TabCoordinatableView {
     var tabItems: TabItems<Self> { get }
     var anyTabItems: any AnyTabItems { get }
@@ -50,6 +51,7 @@ public extension TabCoordinatable {
     }
 }
 
+@MainActor
 extension TabCoordinatable {
     var selectedTabBinding: Binding<UUID?> {
         Binding(
@@ -274,7 +276,17 @@ public struct TabCoordinatableView: CoordinatableView {
         self._coordinator = coordinator
     }
     
+    @ViewBuilder
     private func flowCoordinatableView() -> some View {
+        if #available(iOS 18, *) {
+            flowCoordinatableViewiOS18()
+        } else {
+            flowCoordinatableViewiOS17()
+        }
+    }
+    
+    @available(iOS 18, *)
+    private func flowCoordinatableViewiOS18() -> some View {
         TabView(selection: _coordinator.selectedTabBinding) {
             ForEach(_coordinator.anyTabItems.tabs) { tab in
                 Tab(value: tab.id, role: tab.tabRole) {
@@ -286,7 +298,21 @@ public struct TabCoordinatableView: CoordinatableView {
                         AnyView(tabItem)
                     }
                 }
-                
+            }
+        }
+    }
+    
+    private func flowCoordinatableViewiOS17() -> some View {
+        TabView(selection: _coordinator.selectedTabBinding) {
+            ForEach(_coordinator.anyTabItems.tabs) { tab in
+                wrappedView(tab)
+                    .environmentCoordinatable(_coordinator)
+                    .tabItem {
+                        if let tabItem = tab.tabItem {
+                            AnyView(tabItem)
+                        }
+                    }
+                    .tag(tab.id)
             }
         }
     }

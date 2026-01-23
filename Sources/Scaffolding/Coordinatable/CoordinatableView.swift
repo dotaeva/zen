@@ -1,12 +1,13 @@
 //
 //  CoordinatableView.swift
-//  Zen
+//  Scaffolding
 //
 //  Created by Alexandr Valíček on 29.09.2025.
 //
 
 import SwiftUI
 
+@MainActor
 public protocol CoordinatableView: View {
     var coordinator: any Coordinatable { get }
 }

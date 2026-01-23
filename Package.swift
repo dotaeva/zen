@@ -5,24 +5,24 @@ import PackageDescription
 import CompilerPluginSupport
 
 let package = Package(
-    name: "Zen",
-    platforms: [.macOS(.v14), .iOS(.v18), .tvOS(.v13), .watchOS(.v6), .macCatalyst(.v13)],
+    name: "Scaffolding",
+    platforms: [.macOS(.v14), .iOS(.v17), .tvOS(.v13), .watchOS(.v6), .macCatalyst(.v13)],
     products: [
-        // Products define the executables and libraries a package produces, making them visible to other packages.
+        // Products define the executables∫ and libraries a package produces, making them visible to other packages.
         .library(
-            name: "Zen",
-            targets: ["Zen"]
+            name: "Scaffolding",
+            targets: ["Scaffolding"]
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/swiftlang/swift-syntax", from: "600.0.1"),
+        .package(url: "https://github.com/swiftlang/swift-syntax", from: "602.0.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         // Macro implementation that performs the source transformation of a macro.
         .macro(
-            name: "ZenMacros",
+            name: "ScaffoldingMacros",
             dependencies: [
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
@@ -30,7 +30,7 @@ let package = Package(
         ),
 
         // Library that exposes a macro as part of its API, which is used in client programs.
-        .target(name: "Zen", dependencies: ["ZenMacros"]),
+        .target(name: "Scaffolding", dependencies: ["ScaffoldingMacros"]),
 
     ]
 )
