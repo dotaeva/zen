@@ -12,6 +12,7 @@ import Observation
 public protocol TabCoordinatable: Coordinatable where ViewType == TabCoordinatableView {
     var tabItems: TabItems<Self> { get }
     var anyTabItems: any AnyTabItems { get }
+    var presentedAs: PresentationType? { get set }
 }
 
 @MainActor
@@ -265,6 +266,17 @@ public extension TabCoordinatable {
     }
 }
 
+public extension TabCoordinatable {
+    func setPresentedAs(_ type: PresentationType) {
+        anyTabItems.presentedAs = type
+        for i in anyTabItems.tabs.indices {
+            if anyTabItems.tabs[i].pushType == nil {
+                anyTabItems.tabs[i].setPushType(type)
+            }
+        }
+    }
+}
+
 public struct TabCoordinatableView: CoordinatableView {
     private let _coordinator: any TabCoordinatable
     
@@ -278,21 +290,23 @@ public struct TabCoordinatableView: CoordinatableView {
     
     @ViewBuilder
     private func flowCoordinatableView() -> some View {
-        if #available(iOS 18, *) {
+        if #available(iOS 18, macOS 15, *) {
             flowCoordinatableViewiOS18()
         } else {
             flowCoordinatableViewiOS17()
         }
     }
-    
-    @available(iOS 18, *)
+
+    @available(iOS 18, macOS 15, *)
     private func flowCoordinatableViewiOS18() -> some View {
         TabView(selection: _coordinator.selectedTabBinding) {
             ForEach(_coordinator.anyTabItems.tabs) { tab in
                 Tab(value: tab.id, role: tab.tabRole) {
                     wrappedView(tab)
                         .environmentCoordinatable(_coordinator)
+#if os(iOS)
                         .toolbar(_coordinator.anyTabItems.tabBarVisibility, for: .tabBar)
+#endif
                 } label: {
                     if let tabItem = tab.tabItem {
                         AnyView(tabItem)

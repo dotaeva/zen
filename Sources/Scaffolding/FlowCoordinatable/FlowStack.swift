@@ -13,6 +13,7 @@ public protocol AnyFlowStack: AnyObject, CoordinatableData where Coordinator: Fl
     var root: Destination? { get set }
     var destinations: [Destination] { get set }
     var animation: Animation? { get set }
+    var presentedAs: PresentationType? { get set }
 }
 
 @MainActor
@@ -22,6 +23,7 @@ public class FlowStack<Coordinator: FlowCoordinatable>: AnyFlowStack {
     public var parent: (any Coordinatable)?
     public var hasLayerNavigationCoordinator: Bool = false
     public var animation: Animation? = .default
+    public var presentedAs: PresentationType?
     
     public var destinations: [Destination] = .init()
     
@@ -40,6 +42,10 @@ public class FlowStack<Coordinator: FlowCoordinatable>: AnyFlowStack {
             var rootDest = rootDestination.value(for: coordinator)
             
             rootDest.coordinatable?.setHasLayerNavigationCoordinatable(true)
+            
+            if let presentedAs = presentedAs {
+                rootDest.setPushType(presentedAs)
+            }
             
             root = rootDest
             self.initialRoot = nil
@@ -125,9 +131,15 @@ extension FlowStack {
     }
     
     func setRoot(root: Destination, animation: Animation?) {
-        withAnimation(animation ?? self.animation) {
-            root.coordinatable?.setHasLayerNavigationCoordinatable(true)
-            self.root = root
-        }
-    }
+         withAnimation(animation ?? self.animation) {
+             var mutableRoot = root
+             mutableRoot.coordinatable?.setHasLayerNavigationCoordinatable(true)
+             
+             if let presentedAs = presentedAs, mutableRoot.pushType == nil {
+                 mutableRoot.setPushType(presentedAs)
+             }
+             
+             self.root = mutableRoot
+         }
+     }
 }

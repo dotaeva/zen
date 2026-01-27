@@ -13,6 +13,7 @@ public protocol AnyTabItems: AnyObject, CoordinatableData where Coordinator: Tab
     var tabs: [Destination] { get set }
     var selectedTab: UUID? { get set }
     var tabBarVisibility: Visibility { get set }
+    var presentedAs: PresentationType? { get set }
 }
 
 @MainActor
@@ -20,6 +21,7 @@ public protocol AnyTabItems: AnyObject, CoordinatableData where Coordinator: Tab
 public class TabItems<Coordinator: TabCoordinatable>: AnyTabItems {
     public var parent: (any Coordinatable)?
     public var hasLayerNavigationCoordinator: Bool = false
+    public var presentedAs: PresentationType?
     
     public var tabs: [Destination] = .init()
     public var selectedTab: UUID? = nil
@@ -46,9 +48,15 @@ public class TabItems<Coordinator: TabCoordinatable>: AnyTabItems {
     public func setup(for coordinator: Coordinator) {
         guard !isSetup else { return }
         self.tabs = initialTabs.map {
-            let t = $0.value(for: coordinator)
+            var t = $0.value(for: coordinator)
             t.coordinatable?.setHasLayerNavigationCoordinatable(coordinator.hasLayerNavigationCoordinatable)
             t.coordinatable?.setParent(coordinator)
+            
+            if let presentedAs = presentedAs {
+                t.setPushType(presentedAs)
+                propagateDestinationType(to: t.coordinatable, as: presentedAs)
+            }
+            
             return t
         }
         
@@ -88,6 +96,18 @@ public class TabItems<Coordinator: TabCoordinatable>: AnyTabItems {
     
     func setTabBarVisibility(_ value: Visibility) {
         self.tabBarVisibility = value
+    }
+    
+    private func propagateDestinationType(to coordinatable: (any Coordinatable)?, as type: PresentationType) {
+        guard let coordinatable = coordinatable else { return }
+        
+        if let flowCoordinator = coordinatable as? any FlowCoordinatable {
+            flowCoordinator.setPresentedAs(type)
+        } else if let tabCoordinator = coordinatable as? any TabCoordinatable {
+            tabCoordinator.setPresentedAs(type)
+        } else if let rootCoordinator = coordinatable as? any RootCoordinatable {
+            rootCoordinator.setPresentedAs(type)
+        }
     }
 }
 
@@ -164,33 +184,52 @@ extension TabItems {
     }
     
     func setTabs(_ tabs: [Destination]) {
-        self.tabs = tabs
+        self.tabs = tabs.map { tab in
+            var mutableTab = tab
+            if let presentedAs = presentedAs, mutableTab.pushType == nil {
+                mutableTab.setPushType(presentedAs)
+                propagateDestinationType(to: mutableTab.coordinatable, as: presentedAs)
+            }
+            return mutableTab
+        }
         
         if let selectedTab = selectedTab,
-           !tabs.contains(where: { $0.id == selectedTab }) {
-            self.selectedTab = tabs.first?.id
+           !self.tabs.contains(where: { $0.id == selectedTab }) {
+            self.selectedTab = self.tabs.first?.id
         }
     }
     
     func appendTab(_ tab: Destination) -> Destination {
-        tabs.append(tab)
-        
-        if selectedTab == nil {
-            selectedTab = tab.id
+        var mutableTab = tab
+        if let presentedAs = presentedAs, mutableTab.pushType == nil {
+            mutableTab.setPushType(presentedAs)
+            propagateDestinationType(to: mutableTab.coordinatable, as: presentedAs)
         }
         
-        return tab
+        tabs.append(mutableTab)
+        
+        if selectedTab == nil {
+            selectedTab = mutableTab.id
+        }
+        
+        return mutableTab
     }
     
     func insertTab(_ tab: Destination, at index: Int) -> Destination {
-        let clampedIndex = max(0, min(index, tabs.count))
-        tabs.insert(tab, at: clampedIndex)
-        
-        if selectedTab == nil {
-            selectedTab = tab.id
+        var mutableTab = tab
+        if let presentedAs = presentedAs, mutableTab.pushType == nil {
+            mutableTab.setPushType(presentedAs)
+            propagateDestinationType(to: mutableTab.coordinatable, as: presentedAs)
         }
         
-        return tab
+        let clampedIndex = max(0, min(index, tabs.count))
+        tabs.insert(mutableTab, at: clampedIndex)
+        
+        if selectedTab == nil {
+            selectedTab = mutableTab.id
+        }
+        
+        return mutableTab
     }
     
     func removeFirstTab(_ meta: Coordinator.Destinations.Meta) {

@@ -54,23 +54,23 @@ public extension FlowCoordinatable {
 
 @MainActor
 extension FlowCoordinatable {
-    func bindingStack(for destinationType: DestinationType) -> Binding<[Destination]> {
-        guard destinationType == .push else {
+    func bindingStack(for presentationType: PresentationType) -> Binding<[Destination]> {
+        guard presentationType == .push else {
             return .constant([])
         }
         
         return .init {
-            self.flattenDestinations(for: destinationType)
+            self.flattenDestinations(for: presentationType)
         } set: { newValue in
-            self.reconstructDestinations(from: newValue, for: destinationType)
+            self.reconstructDestinations(from: newValue, for: presentationType)
         }
     }
 }
 
 @MainActor
 extension FlowCoordinatable {
-    func modalDestinations(for destinationType: DestinationType) -> [Destination] {
-        guard destinationType == .sheet || destinationType == .fullScreenCover else {
+    func modalDestinations(for presentationType: PresentationType) -> [Destination] {
+        guard presentationType == .sheet || presentationType == .fullScreenCover else {
             return []
         }
         
@@ -78,24 +78,26 @@ extension FlowCoordinatable {
         
         if let rootDest = self.anyStack.root {
             traverseCoordinatable(rootDest.coordinatable) { nestedFlow in
-                flattened.append(contentsOf: nestedFlow.modalDestinations(for: destinationType))
+                flattened.append(contentsOf: nestedFlow.modalDestinations(for: presentationType))
             }
         }
         
         for destination in self.anyStack.destinations {
-            if destination.pushType == destinationType {
+            if destination.pushType == presentationType {
                 flattened.append(destination)
             }
             
-            traverseCoordinatable(destination.coordinatable) { nestedFlow in
-                flattened.append(contentsOf: nestedFlow.modalDestinations(for: destinationType))
+            if destination.pushType == .push {
+                traverseCoordinatable(destination.coordinatable) { nestedFlow in
+                    flattened.append(contentsOf: nestedFlow.modalDestinations(for: presentationType))
+                }
             }
         }
         
         return flattened
     }
     
-    func removeModalDestination(withId id: UUID, type: DestinationType) {
+    func removeModalDestination(withId id: UUID, type: PresentationType) {
         if let rootDest = self.anyStack.root {
             traverseCoordinatable(rootDest.coordinatable) { nestedFlow in
                 nestedFlow.removeModalDestination(withId: id, type: type)
@@ -104,7 +106,7 @@ extension FlowCoordinatable {
         
         anyStack.destinations.removeAll { $0.id == id && $0.pushType == type }
         
-        for destination in anyStack.destinations {
+        for destination in anyStack.destinations where destination.pushType == .push {
             traverseCoordinatable(destination.coordinatable) { nestedFlow in
                 nestedFlow.removeModalDestination(withId: id, type: type)
             }
@@ -114,7 +116,7 @@ extension FlowCoordinatable {
 
 @MainActor
 private extension FlowCoordinatable {
-    private func flattenDestinations(for destinationType: DestinationType) -> [Destination] {
+    private func flattenDestinations(for presentationType: PresentationType) -> [Destination] {
         var flattened: [Destination] = []
         
         func flattenRecursively(_ destinations: [Destination]) {
@@ -123,7 +125,7 @@ private extension FlowCoordinatable {
                     continue
                 }
                 
-                if destination.pushType == destinationType {
+                if destination.pushType == presentationType {
                     flattened.append(destination)
                 }
                 
@@ -168,7 +170,7 @@ private extension FlowCoordinatable {
         return flattened
     }
     
-    private func reconstructDestinations(from flattenedDestinations: [Destination], for destinationType: DestinationType) {
+    private func reconstructDestinations(from flattenedDestinations: [Destination], for presentationType: PresentationType) {
         var flatIndex = 0
         
         func reconstructRecursively(for coordinator: any FlowCoordinatable) -> [Destination] {
@@ -180,7 +182,7 @@ private extension FlowCoordinatable {
                     continue
                 }
                 
-                if originalDestination.pushType == destinationType {
+                if originalDestination.pushType == presentationType {
                     if flatIndex < flattenedDestinations.count {
                         let flatDest = flattenedDestinations[flatIndex]
                         
@@ -308,7 +310,7 @@ private extension FlowCoordinatable {
         }
     }
     
-    func checkForMultipleModals(pushType: DestinationType) {
+    func checkForMultipleModals(pushType: PresentationType) {
         func findLayerFlowParent(lookup: (any Coordinatable)?) -> any FlowCoordinatable {
             if let flowCoordinatable = lookup as? (any FlowCoordinatable) {
                 if !flowCoordinatable.anyStack.hasLayerNavigationCoordinator {
@@ -354,7 +356,7 @@ public extension FlowCoordinatable {
     @discardableResult
     func route(
         to destination: Destinations,
-        as pushType: DestinationType = .push,
+        as pushType: PresentationType = .push,
         onDismiss: @escaping () -> Void = { }
     ) -> Self {
         performRoute(to: destination, as: pushType, onDismiss: onDismiss)
@@ -364,7 +366,7 @@ public extension FlowCoordinatable {
     @discardableResult
     func route<T>(
         to destination: Destinations,
-        as pushType: DestinationType = .push,
+        as pushType: PresentationType = .push,
         onDismiss: @escaping () -> Void = { },
         value: @escaping (T) -> Void
     ) -> Self {
@@ -427,15 +429,20 @@ private extension FlowCoordinatable {
     @discardableResult
     func performRoute(
         to destination: Destinations,
-        as pushType: DestinationType,
+        as pushType: PresentationType,
         onDismiss: @escaping () -> Void
     ) -> Destination {
         var dest = destination.value(for: self)
         
         dest.setOnDismiss(onDismiss)
         dest.setPushType(pushType)
+        dest.setRouteType(DestinationType.from(presentationType: pushType))
         dest.coordinatable?.setHasLayerNavigationCoordinatable(pushType == .push)
         dest.coordinatable?.setParent(self)
+        
+        if let flowCoordinator = dest.coordinatable as? any FlowCoordinatable {
+            flowCoordinator.setPresentedAs(pushType)
+        }
         
         stack.push(destination: dest)
         
@@ -450,6 +457,17 @@ private extension FlowCoordinatable {
             action(view)
         } else {
             fatalError("Could not cast to type \(T.self)")
+        }
+    }
+}
+
+@MainActor
+extension FlowCoordinatable {
+    func setPresentedAs(_ type: PresentationType) {
+        stack.presentedAs = type
+        if var root = stack.root, root.pushType == nil {
+            root.setPushType(type)
+            stack.root = root
         }
     }
 }

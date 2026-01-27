@@ -90,6 +90,17 @@ public extension RootCoordinatable {
     }
 }
 
+@MainActor
+public extension RootCoordinatable {
+    func setPresentedAs(_ type: PresentationType) {
+        anyRoot.presentedAs = type
+        if var root = anyRoot.root, root.pushType == nil {
+            root.setPushType(type)
+            anyRoot.root = root
+        }
+    }
+}
+
 public struct RootCoordinatableView: CoordinatableView {
     private let _coordinator: any RootCoordinatable
     

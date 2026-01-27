@@ -12,9 +12,52 @@ public protocol DestinationMeta: Equatable { }
 
 @MainActor
 public enum DestinationType {
+    case root
     case push
     case sheet
     case fullScreenCover
+    
+    var isModal: Bool {
+        switch self {
+        case .sheet, .fullScreenCover:
+            return true
+        default: return false
+        }
+    }
+    
+    static func from(presentationType: PresentationType) -> DestinationType {
+        return switch presentationType {
+        case .push:
+                .push
+        case .sheet:
+                .sheet
+        case .fullScreenCover:
+                .fullScreenCover
+        }
+    }
+}
+
+@MainActor
+public enum PresentationType {
+    case push
+    case sheet
+    case fullScreenCover
+}
+
+// MARK: - Environment Key
+
+// MARK: - Environment Key
+
+private struct DestinationEnvironmentKey: @MainActor EnvironmentKey {
+    @MainActor static let defaultValue: Destination = .dummy
+}
+
+public extension EnvironmentValues {
+    @MainActor
+    var destination: Destination {
+        get { self[DestinationEnvironmentKey.self] }
+        set { self[DestinationEnvironmentKey.self] = newValue }
+    }
 }
 
 @MainActor
@@ -42,6 +85,7 @@ public struct Destination: Identifiable {
         }
         
         @available(iOS 18, *)
+        @available(macOS 15, *)
         init<V: View>(_ factory: @escaping () -> (any Coordinatable, V, TabRole)) {
             self.coordinatableFactory = {
                 let (coordinatable, _, _) = factory()
@@ -76,11 +120,12 @@ public struct Destination: Identifiable {
     
     public var id: UUID = .init()
     
-    var view: AnyView?
-    var _tabItem: AnyView?
+    private var _view: AnyView?
+    private var _tabItem: AnyView?
     var _coordinatable: CoordinatableCache?
     
     @available(iOS 18, *)
+    @available(macOS 15, *)
     var tabRole: TabRole? {
         get { _tabRole as? TabRole }
         set { _tabRole = newValue }
@@ -88,18 +133,42 @@ public struct Destination: Identifiable {
     
     private var _tabRole: Any?
     
-    var pushType: DestinationType?
+    var pushType: PresentationType?
+    public var routeType: DestinationType = .root
+    public var presentationType: DestinationType {
+        switch pushType {
+        case .push:
+                .push
+        case .sheet:
+                .sheet
+        case .fullScreenCover:
+                .fullScreenCover
+        case nil:
+                .root
+        }
+    }
+    
     public let meta: any DestinationMeta
     var parent: any Coordinatable
     
     var onDismiss: (() -> Void)?
     
-    public var coordinatable: (any Coordinatable)? {
+    var coordinatable: (any Coordinatable)? {
         return _coordinatable?.coordinatable
     }
     
-    public var tabItem: AnyView? {
-        return _tabItem ?? _coordinatable?.view
+    // MARK: - Environment-Injected Accessors
+    
+    /// Returns the view with Destination injected into environment
+    var view: AnyView? {
+        guard let v = _view else { return nil }
+        return AnyView(v.environment(\.destination, self))
+    }
+    
+    /// Returns the tab item view with Destination injected into environment
+    var tabItem: AnyView? {
+        guard let item = _tabItem ?? _coordinatable?.view else { return nil }
+        return AnyView(item.environment(\.destination, self))
     }
     
     // MARK: - Basic Initializers
@@ -110,7 +179,7 @@ public struct Destination: Identifiable {
         meta: any DestinationMeta,
         parent: any Coordinatable
     ) {
-        self.view = AnyView(value)
+        self._view = AnyView(value)
         self.meta = meta
         self.parent = parent
     }
@@ -145,7 +214,7 @@ public struct Destination: Identifiable {
     ) {
         let (v, t) = factory()
         
-        self.view = AnyView(v)
+        self._view = AnyView(v)
         self.meta = meta
         self.parent = parent
         self._tabItem = AnyView(t)
@@ -155,6 +224,7 @@ public struct Destination: Identifiable {
     
     /// Initializer for `(some View, TabRole)`
     @available(iOS 18, *)
+    @available(macOS 15, *)
     public init<V: View>(
         _ factory: @escaping () -> (V, TabRole),
         meta: any DestinationMeta,
@@ -162,7 +232,7 @@ public struct Destination: Identifiable {
     ) {
         let (v, role) = factory()
         
-        self.view = AnyView(v)
+        self._view = AnyView(v)
         self.meta = meta
         self.parent = parent
         self._tabRole = role
@@ -170,6 +240,7 @@ public struct Destination: Identifiable {
     
     /// Initializer for `(any Coordinatable, TabRole)`
     @available(iOS 18, *)
+    @available(macOS 15, *)
     public init(
         _ factory: @escaping () -> (any Coordinatable, TabRole),
         meta: any DestinationMeta,
@@ -186,6 +257,7 @@ public struct Destination: Identifiable {
     
     /// Initializer for `(some View, some View, TabRole)` - view + tab item + role
     @available(iOS 18, *)
+    @available(macOS 15, *)
     public init<V: View, T: View>(
         _ factory: @escaping () -> (V, T, TabRole),
         meta: any DestinationMeta,
@@ -193,7 +265,7 @@ public struct Destination: Identifiable {
     ) {
         let (v, t, role) = factory()
         
-        self.view = AnyView(v)
+        self._view = AnyView(v)
         self.meta = meta
         self.parent = parent
         self._tabItem = AnyView(t)
@@ -202,6 +274,7 @@ public struct Destination: Identifiable {
     
     /// Initializer for `(any Coordinatable, some View, TabRole)` - coordinatable + tab item + role
     @available(iOS 18, *)
+    @available(macOS 15, *)
     public init<V: View>(
         _ factory: @escaping () -> (any Coordinatable, V, TabRole),
         meta: any DestinationMeta,
@@ -209,7 +282,7 @@ public struct Destination: Identifiable {
     ) {
         let result = factory()
         
-        self._coordinatable = CoordinatableCache(factory) // ✅ Pass factory directly
+        self._coordinatable = CoordinatableCache(factory)
         self.meta = meta
         self.parent = parent
         self._tabRole = result.2
@@ -221,8 +294,12 @@ public struct Destination: Identifiable {
         onDismiss = value
     }
     
-    mutating func setPushType(_ value: DestinationType) {
+    mutating func setPushType(_ value: PresentationType) {
         pushType = value
+    }
+    
+    mutating func setRouteType(_ value: DestinationType) {
+        routeType = value
     }
 }
 

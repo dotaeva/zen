@@ -12,6 +12,7 @@ import Observation
 public protocol AnyRoot: AnyObject, CoordinatableData where Coordinator: RootCoordinatable {
     var root: Destination? { get set }
     var animation: Animation? { get set }
+    var presentedAs: PresentationType? { get set }
 }
 
 @MainActor
@@ -21,6 +22,7 @@ public class Root<Coordinator: RootCoordinatable>: AnyRoot {
     public var parent: (any Coordinatable)?
     public var hasLayerNavigationCoordinator: Bool = false
     public var animation: Animation? = .default
+    public var presentedAs: PresentationType?
     
     public var isSetup: Bool = false
     private var initialRoot: Coordinator.Destinations?
@@ -30,17 +32,28 @@ public class Root<Coordinator: RootCoordinatable>: AnyRoot {
     }
     
     public func setup(for coordinator: Coordinator) {
-        guard !isSetup else { return }
-        if let rootDestination = initialRoot, root == nil {
-            var rootDest = rootDestination.value(for: coordinator)
-            
-            rootDest.coordinatable?.setHasLayerNavigationCoordinatable(self.hasLayerNavigationCoordinator)
-            
-            root = rootDest
-            self.initialRoot = nil
+            guard !isSetup else { return }
+            if let rootDestination = initialRoot, root == nil {
+                var rootDest = rootDestination.value(for: coordinator)
+                
+                rootDest.coordinatable?.setHasLayerNavigationCoordinatable(self.hasLayerNavigationCoordinator)
+                
+                if let presentedAs = presentedAs {
+                    rootDest.setPushType(presentedAs)
+                    if let flowCoordinator = rootDest.coordinatable as? any FlowCoordinatable {
+                        flowCoordinator.setPresentedAs(presentedAs)
+                    } else if let tabCoordinator = rootDest.coordinatable as? any TabCoordinatable {
+                        tabCoordinator.setPresentedAs(presentedAs)
+                    } else if let rootCoordinator = rootDest.coordinatable as? any RootCoordinatable {
+                        rootCoordinator.setPresentedAs(presentedAs)
+                    }
+                }
+                
+                root = rootDest
+                self.initialRoot = nil
+            }
+            self.isSetup = true
         }
-        self.isSetup = true
-    }
     
     public func setParent(_ parent: any Coordinatable) {
         self.parent = parent
