@@ -216,7 +216,7 @@ Generates the `Destinations` enum for your coordinator. Applied to coordinator c
 Excludes a method from destination generation.
 
 ```swift
-@Flow @Observable
+@Scaffoldable @Observable
 final class ExampleCoordinator: FlowCoordinatable {
     var stack = FlowStack<ExampleCoordinator>(root: .home)
     
